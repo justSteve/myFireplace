@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bd prime:*)",
+      "Bash(bd ready:*)",
+      "WebFetch(domain:www.homedepot.com)",
+      "Bash(bd create:*)",
+      "Bash(bd update:*)",
+      "Bash(bd show:*)",
+      "Bash(git add:*)",
+      "Bash(bd sync:*)",
+      "Bash(git commit:*)",
+      "Bash(git pull:*)",
+      "Bash(git push:*)",
+      "Bash(cmd /c \"uvx mcp-server-git --help\")",
+      "Bash(where:*)",
+      "Bash(uvx mcp-server-git:*)",
+      "Bash(git -C:*)",
+      "Bash(dir /b \"C:\\\\Users\\\\steve\\\\.claude\")",
+      "Bash(git init:*)"
+    ]
+  }
+}
