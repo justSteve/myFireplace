@@ -4,6 +4,135 @@
 
 Replacing an aging steel Heatilator-style insert with a custom-designed high-efficiency masonry firebox. The project prioritizes heating efficiency with potential hydronic integration to supplement an existing in-floor radiant system.
 
+This repo tracks two parallel workstreams plus shared tooling infrastructure:
+
+1. **Interior Firebox** — Masonry firebox core, secondary combustion, hydronic integration
+2. **Exterior Facade** — Stacked ledgestone veneer with precision ceramic tile corner posts
+3. **3D Modeling Infrastructure** — Build123d + OCP CAD Viewer for precision drafting
+
+## Repository Structure
+
+```
+myFireplace/
+├── CLAUDE.md                    # This file — project index
+├── designs/
+│   ├── ash-removal-system.md    # Rear-access ash extraction
+│   ├── corner-post-geometry.md  # 270° ceramic tile corner wraps
+│   └── router-sled-design.md    # Precision cutting sled on SBR20 rails
+├── docs/
+│   ├── 3d-infrastructure-decision.md  # Build123d stack rationale
+│   └── polycam-integration.md         # 3D scanning workflow
+├── cad/
+│   ├── README.md                # Environment setup instructions
+│   └── verify_install.py       # Build123d installation test
+├── sketchup/
+│   ├── tile_cutting_jig.rb     # Parametric jig model (SketchUp Ruby)
+│   └── corner_post.rb          # Corner post calculator & model
+└── visualizations/
+    └── tile-cutting-jig.html   # Interactive SVG jig diagram
+```
+
+---
+
+## Subproject: Exterior Facade — Corner Post System
+
+**Design doc**: `designs/corner-post-geometry.md`
+
+The fireplace exterior has been re-skinned with MSI Alaska Gray Ledger Panel (splitface marble, 6"×24"). The rough outside corners where stone meets at angles — particularly under the vaulted ceiling — need a finished treatment.
+
+**Solution**: Ceramic tile strips arranged in 270° arcs to form rounded "post" effects that cap the imperfect corners. Each post is built from tiers of strips cut from 7.875" × 24" × 0.25" wood-grain ceramic planks.
+
+### Key Geometry
+
+- **Arc**: 270° (360° minus the 90° corner behind)
+- **Strips per tier**: ~9 at 13/16" face width
+- **Resulting radius**: ~1.7" (3.4" diameter post)
+- **Tier height**: 10" tall segments stacked vertically
+- **Grout lines**: 1/8" between strips
+- **Minimum strip width**: 3/4" (below this, breakage risk during cutting)
+
+### Cutting Challenge
+
+Conventional wet tile saws produce unacceptable edge chipping on narrow strips. The solution is a router-based cutting system with diamond bits, using a precision sled constrained to linear rails.
+
+**Taper design**: Under investigation. The bed fixture introduces the taper angle (tile angled relative to straight rail travel) rather than angled carriage movement. Each straight-line pass cuts at a slight angle across the tile face.
+
+See: `designs/router-sled-design.md` for the SBR20 sled design.
+
+---
+
+## Subproject: Precision Router Sled
+
+**Design doc**: `designs/router-sled-design.md`
+
+A manually operated precision cutting system built on VEVOR SBR20-1000mm linear rails (2 rails, 4 SBR20UU bearing blocks). Designed to cut 1/4" ceramic tile into strips as narrow as 3/4" with clean edges.
+
+### Components
+
+- **Rails**: 2× SBR20-1000mm supported linear rails
+- **Bearing blocks**: 4× SBR20UU linear bearing blocks
+- **Carriage plate**: Aluminum, spans between rails, holds router
+- **Platen**: Flat work surface below carriage
+- **Angled bed frame**: Introduces taper angle for strip cuts
+- **Fence**: Reference edge for indexing between strips
+- **Water management**: Gravity-fed wet cutting with drain
+
+### Status
+
+Hardware (rails/bearings) acquired. Detailed design pending — this is the first target for the Build123d modeling environment.
+
+---
+
+## 3D Modeling Infrastructure
+
+**Decision doc**: `docs/3d-infrastructure-decision.md`
+**Setup guide**: `cad/README.md`
+
+### Chosen Stack
+
+**Build123d** (Python parametric BREP modeling) + **OCP CAD Viewer** (VS Code extension) + **WSL backend**
+
+This gives code-on-left, interactive-3D-on-right inside VS Code. The model IS a Python script — AI generates it from narrative, human runs it (Shift+Enter), geometry appears in the viewer panel. Human orbits, zooms, clicks faces. Discussion happens. AI revises script. Human re-runs.
+
+### Why This Stack
+
+- Same OpenCascade kernel as FreeCAD/CATIA (real BREP, not meshes)
+- Fully parametric via Python (loops, variables, functions)
+- VS Code native (no context switching)
+- Fillets, chamfers, sweeps, lofts (critical for post profiles)
+- Exports: STEP, STL, DXF, SVG
+- Zero cost (all MIT/open source)
+
+### What Was Considered
+
+- **CadQuery**: Same kernel, less readable API. Viable fallback.
+- **FreeCAD**: Most capable GUI CAD. Use downstream for TechDraw dimensioned drawings.
+- **OpenSCAD**: CSG-only, no fillets/chamfers. Insufficient.
+- **SketchUp Pro**: Web version lacks scripting. Desktop has no VS Code integration.
+
+See decision doc for full scorecard and rationale.
+
+### 3D Scanning — Polycam Integration
+
+**Doc**: `docs/polycam-integration.md`
+
+Polycam Basic subscription adds real-world-to-digital pipeline:
+- Scan fireplace corners with phone → export as STL/OBJ
+- Import into Build123d as reference geometry
+- Design precision parts around actual scanned surfaces
+- Verify fit before cutting tile
+
+### Environment Setup Status
+
+- [ ] WSL version confirmed (Ubuntu?)
+- [ ] VS Code WSL extension verified
+- [ ] Build123d + ocp-vscode installed in WSL venv
+- [ ] OCP CAD Viewer extension installed
+- [ ] Verification script (`cad/verify_install.py`) runs successfully
+- [ ] Polycam scan exported and imported
+
+---
+
 ## Existing Conditions
 
 ### Firebox Dimensions
@@ -104,7 +233,7 @@ Risk: Fire burning + no circulation = water trapped in coil → localized boilin
 
 ### Rear Ash Removal System
 
-**Bead**: myStuff-4q2 | **Design doc**: `designs/ash-removal-system.md`
+**Design doc**: `designs/ash-removal-system.md`
 
 Rear-access ash removal enabling ash extraction while fire is burning. Key elements:
 - Angled grate at rear of hearth (starts at floor level, slopes up to back wall)
@@ -207,11 +336,20 @@ Still a generous firebox (~27" × 20" × 20"). Channel space (~10") reserved for
 - [x] Boiler temp/zones? → <150°F, 12 zones across 3 manifolds, favorable routing to manifold 2
 - [x] Loop type? → Closed loop, water only (no glycol)
 - [x] Overheat protection? → Continuous coil circulation via temp-sensor activated pump
+- [x] Corner post material? → 7.875" × 24" × 0.25" wood-grain ceramic planks
+- [x] Corner post geometry? → 9 strips at 13/16", ~1.7" radius, 270° arc
+- [x] 3D modeling stack? → Build123d + OCP CAD Viewer + WSL
 
 ### Pending (requires demolition)
 1. Actual convection channel dimensions and geometry
 2. Condition of existing masonry behind steel insert
 3. Confirm ~12" clearance above firebox to flue (estimated, may allow above-firebox secondary chamber)
+
+### Pending (requires setup)
+1. WSL environment details (Ubuntu version)
+2. VS Code WSL extension status
+3. Build123d environment installation
+4. Polycam scan export and import test
 
 ### Design Decisions
 1. Secondary combustion chamber placement (above vs. behind)
@@ -219,6 +357,7 @@ Still a generous firebox (~27" × 20" × 20"). Channel space (~10") reserved for
 3. Liner diameter (depends on final design BTU output)
 4. Balance between hydronic extraction vs. radiant room heat
 5. Buffer tank sizing and placement in wood storage room
+6. Router sled taper angle (requires final post diameter confirmation)
 
 ## Research Areas
 
@@ -227,6 +366,8 @@ Still a generous firebox (~27" × 20" × 20"). Channel space (~10") reserved for
 - [ ] Hydronic coil/jacket sizing for wood-fired systems
 - [ ] Appropriate liner sizing for BTU output
 - [ ] Secondary combustion chamber design parameters
+- [ ] Diamond router bit selection for ceramic tile
+- [ ] SBR20 bearing block mounting patterns and tolerances
 
 ## Resources
 
@@ -243,3 +384,5 @@ Still a generous firebox (~27" × 20" × 20"). Channel space (~10") reserved for
 ## Notes
 
 This project explores applying modern wood-burning efficiency principles within the constraints of an existing masonry fireplace shell. The goal is not to replicate a commercial insert but to create a custom solution optimized for this specific installation.
+
+The exterior facade work (corner posts) is a separate but related subproject that drives the precision tooling and 3D modeling infrastructure investment. The Build123d environment will serve both the ceramic tile cutting jig design and eventually the interior firebox component design.
