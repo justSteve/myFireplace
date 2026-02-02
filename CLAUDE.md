@@ -54,7 +54,10 @@ The fireplace exterior has been re-skinned with MSI Alaska Gray Ledger Panel (sp
 
 ### Cutting Challenge
 
-Conventional wet tile saws produce unacceptable edge chipping on narrow strips. The solution is a router-based cutting system with diamond bits, using a precision sled constrained to linear rails.
+Conventional wet tile saws produce unacceptable edge chipping on narrow strips. The solution is an angle grinder with a thin continuous-rim diamond blade, mounted to a precision sled constrained to linear rails. This approach provides:
+- Thinner kerf (~0.045") than router bits, maximizing strip yield
+- Clean edge quality through multiple shallow passes
+- Wet cutting capability for blade life and silica dust control
 
 **Taper design**: Under investigation. The bed fixture introduces the taper angle (tile angled relative to straight rail travel) rather than angled carriage movement. Each straight-line pass cuts at a slight angle across the tile face.
 
@@ -62,7 +65,7 @@ See: `designs/router-sled-design.md` for the SBR20 sled design.
 
 ---
 
-## Subproject: Precision Router Sled
+## Subproject: Precision Cutting Sled
 
 **Design doc**: `designs/router-sled-design.md`
 
@@ -72,15 +75,22 @@ A manually operated precision cutting system built on VEVOR SBR20-1000mm linear 
 
 - **Rails**: 2× SBR20-1000mm supported linear rails
 - **Bearing blocks**: 4× SBR20UU linear bearing blocks
-- **Carriage plate**: Aluminum, spans between rails, holds router
-- **Platen**: Flat work surface below carriage
+- **Carriage plate**: Aluminum, spans between rails, holds angle grinder
+- **Angle grinder**: Makita 4.5" with continuous-rim diamond blade (~0.045" kerf)
+- **Platen**: Flat work surface below carriage (water-resistant material)
 - **Angled bed frame**: Introduces taper angle for strip cuts
 - **Fence**: Reference edge for indexing between strips
 - **Water management**: Gravity-fed wet cutting with drain
 
+### Cutting Approach
+
+- Multiple passes (2-3) for edge quality — first pass defines the edge
+- Wet cutting eliminates silica dust hazard and extends blade life
+- Ceramic tile (confirmed, not porcelain) is forgiving to cut
+
 ### Status
 
-Hardware (rails/bearings) acquired. Detailed design pending — this is the first target for the Build123d modeling environment.
+Hardware (rails/bearings) acquired. Angle grinder available. Detailed design pending — this is the first target for the Build123d modeling environment.
 
 ---
 
@@ -358,7 +368,7 @@ Still a generous firebox (~27" × 20" × 20"). Channel space (~10") reserved for
 3. Liner diameter (depends on final design BTU output)
 4. Balance between hydronic extraction vs. radiant room heat
 5. Buffer tank sizing and placement in wood storage room
-6. Router sled taper angle (requires final post diameter confirmation)
+6. Cutting sled taper angle (requires final post diameter confirmation)
 
 ## Research Areas
 
@@ -367,7 +377,7 @@ Still a generous firebox (~27" × 20" × 20"). Channel space (~10") reserved for
 - [ ] Hydronic coil/jacket sizing for wood-fired systems
 - [ ] Appropriate liner sizing for BTU output
 - [ ] Secondary combustion chamber design parameters
-- [ ] Diamond router bit selection for ceramic tile
+- [x] Diamond blade selection for ceramic tile → Continuous-rim blade (Montolit CGX or similar), ~0.045" kerf
 - [ ] SBR20 bearing block mounting patterns and tolerances
 
 ## Resources
