@@ -1,163 +1,183 @@
 # Session Handoff: Corner Post CAD Development
 **Date**: 2026-02-01
-**Context**: Build123d parametric modeling for ceramic tile corner posts
+**Final commit**: `21feafc`
+**Status**: Working parametric model with tapers, overhangs, and tier offset
 
 ---
 
-## Summary
+## Executive Summary
 
-Established a working CAD environment (Build123d + OCP CAD Viewer) and created the first parametric model for the **counter-to-mantel corner post section**. The model demonstrates a tapered 270° arc post with 5 vertical subsections.
+Established Build123d CAD environment and created a **fully parametric 5-section corner post model** demonstrating:
+- True tapered geometry (lofted angled surfaces, not stepped)
+- Trim/molding overhangs on bases and cap
+- Distinct tier offset (0.2" step-in at tier transition)
+- 270° arc oriented for right fireplace corner
+
+**The model is ready for dimension refinement based on actual measurements.**
 
 ---
 
-## Environment Setup (COMPLETE)
+## Environment (VERIFIED WORKING)
 
-| Component | Status | Details |
-|-----------|--------|---------|
+| Component | Status | Location/Details |
+|-----------|--------|------------------|
 | WSL | ✅ | Ubuntu 24.04.3 LTS |
 | Python venv | ✅ | `/root/cad/.venv` |
-| Build123d | ✅ | Installed, verified |
-| OCP CAD Viewer | ✅ | Extension `bernhard-42.ocp-cad-viewer` |
-| tmux session | ✅ | `cad-setup` - attach with `tmux attach -t cad-setup` |
-| Polycam scan | ⚠️ | Imported but too low-res for precision work; pivoted to declarative approach |
+| Build123d | ✅ | Parametric BREP modeling |
+| OCP CAD Viewer | ✅ | `bernhard-42.ocp-cad-viewer` |
+| tmux session | ✅ | `cad-setup` |
 
-**Workspace layout**: Dual-monitor setup documented in `.vscode/cad-layout-profile.md`
-- Left monitor: VS Code with Claude Code chat
-- Right monitor: OCP CAD Viewer (full screen)
+**To resume**:
+```bash
+tmux attach -t cad-setup
+# Then in VS Code: Ctrl+Shift+P → "OCP CAD Viewer: Open Viewer"
+python /root/projects/myFireplace/cad/taper_demo.py
+```
 
 ---
 
-## Corner Post Project Structure
+## Current Model: `cad/taper_demo.py`
 
-### The 6 Post Sections (left & right corners)
-
-| Section | Height | Status |
-|---------|--------|--------|
-| Floor → Counter | TBD | Not started |
-| **Counter → Mantel** | **28"** | **IN PROGRESS** |
-| Mantel → Cap | TBD | Not started |
-
-### Counter-to-Mantel Breakdown (current focus)
+### Geometry Specification
 
 ```
-┌─────────────────┐  ← Cap: 3" @ r=1.7"
-│                 │
-│     Tier 2      │  ← 15" @ r=1.7" (standard 8" plank)
-│                 │
-├─────────────────┤  ← Base 2: 1" (transition ~1.9"r)
-│                 │
-│     Tier 1      │  ← 8" @ r=2.1" (wider plank needed)
-│                 │
-├─────────────────┤  ← Base: 1" @ r=2.1"
-└─────────────────┘
-     Total: 28"
+┌─────────────────────┐  Cap: 3" @ r=1.55" (1.4" + overhang)
+│    ═══════════════  │
+│         ╲     ╱     │  Tier2: 15" TAPERED 1.7" → 1.4"
+│          ╲   ╱      │  (angled surfaces)
+│           ╲ ╱       │
+├───────────────────┤  Base2: 1" @ r=2.05" (1.9" + overhang)
+│                     │  ════ 0.2" STEP-IN OFFSET ════
+│      ╲         ╱    │  Tier1: 8" TAPERED 2.3" → 1.9"
+│       ╲       ╱     │  (angled surfaces)
+│        ╲     ╱      │
+├─────────────────────┤  Base1: 1" @ r=2.45" (2.3" + overhang)
+└─────────────────────┘
+        TOTAL: 28"
 ```
 
-### Taper Rationale
-
-- **Tier 1 (bottom)**: Wider radius (2.1") requires strips from wider plank material
-- **Tier 2 (top)**: Standard radius (1.7") uses strips from standard 8" ceramic planks
-- **Transition**: Base 2 provides visual step-down between radii
-- Both tiers use **9 strips** over **270°** arc
-
----
-
-## Key Geometry Parameters
-
-From `CLAUDE.md` and refined during session:
+### Key Parameters
 
 ```python
-ARC_ANGLE = 270°          # 360° - 90° corner
-STRIP_COUNT = 9           # strips per tier
-GROUT_GAP = 1/8"         # between strips
-TILE_THICKNESS = 0.25"   # ceramic plank thickness
+# Radii (4 distinct values)
+WIDE_RADIUS = 2.3"      # Tier1 bottom
+TIER1_TOP = 1.9"        # Tier1 top / Base2
+TIER2_START = 1.7"      # Tier2 bottom (0.2" offset from Tier1 top)
+NARROW_RADIUS = 1.4"    # Tier2 top / Cap
 
-TIER1_RADIUS = 2.1"      # wider (bottom)
-TIER2_RADIUS = 1.7"      # narrower (top)
+# Trim details
+OVERHANG = 0.15"        # Bases/cap extend beyond tiers
+THICKNESS = 0.25"       # Tile thickness
+
+# Heights
+BASE1 = 1", TIER1 = 8", BASE2 = 1", TIER2 = 15", CAP = 3"
+TOTAL = 28"
+```
+
+### Technical Approach
+
+1. **Constant sections** (bases/cap): Extruded 270° annulus
+2. **Tapered sections** (tiers): Lofted between two different-radius annulus profiles
+3. **90° wedge removal**: Triangle subtraction centered on 180° (into corner)
+4. **Arc orientation**: Gap faces -X axis (into corner diagonal for right-side post)
+
+---
+
+## Files in Repository
+
+### CAD Models
+| File | Purpose | Status |
+|------|---------|--------|
+| `cad/taper_demo.py` | **Main model** - 5-section tapered post | ✅ Working |
+| `cad/corner_post_counter_to_mantel.py` | Earlier iteration (stepped, not tapered) | Superseded |
+| `cad/view_polycam_scan.py` | STL viewer for Polycam imports | ✅ Working |
+| `cad/verify_install.py` | Environment verification | ✅ Working |
+
+### Documentation
+| File | Purpose |
+|------|---------|
+| `CLAUDE.md` | Project overview, geometry specs, material notes |
+| `docs/session-handoff-2026-02-01.md` | This file |
+| `.vscode/cad-layout-profile.md` | Dual-monitor workflow |
+| `.vscode/settings.json` | Workspace Python path, OCP port |
+
+### Other
+| File | Purpose |
+|------|---------|
+| `polycam/` | Scan files (gitignored, local only) |
+| `.gitignore` | Excludes large STL/ZIP files |
+
+---
+
+## Git History This Session
+
+```
+21feafc - Corner post: add tier2 offset (0.2" step-in)
+b95b08a - Corner post: 5-section model with tapers and overhangs
+de95bda - Corner post: tapered model + session handoff documentation
+fed0359 - WIP: Corner post counter-to-mantel section (draft)
+8af7f91 - Add VS Code workspace settings and CAD layout profile
+7474e62 - Exclude large Polycam scan files from repo
+a8fe75e - Remove SketchUp, add Polycam viewer script
+32a8843 - Mark Build123d environment setup complete
 ```
 
 ---
 
-## Files Created/Modified
+## What Was Accomplished
 
-### New Files
-- `cad/corner_post_counter_to_mantel.py` — Main parametric model
-- `cad/view_polycam_scan.py` — STL viewer (Polycam imports)
-- `.vscode/settings.json` — Workspace settings
-- `.vscode/cad-layout-profile.md` — Dual-monitor layout docs
-- `.gitignore` — Excludes large Polycam files
-
-### Modified Files
-- `CLAUDE.md` — Updated environment checklist, removed SketchUp refs
-- `cad/verify_install.py` — Simplified show() call
-
----
-
-## Git Commits This Session
-
-1. `32a8843` — Mark Build123d environment setup complete
-2. `a8fe75e` — Remove SketchUp, add Polycam viewer script
-3. `7474e62` — Exclude large Polycam scan files from repo
-4. `8af7f91` — Add VS Code workspace settings and CAD layout profile
-5. `fed0359` — WIP: Corner post counter-to-mantel section (draft)
-6. *(uncommitted)* — Tapered model with 2.1" → 1.7" radius
+1. ✅ **Build123d environment** verified and documented
+2. ✅ **OCP CAD Viewer** integration with dual-monitor workflow
+3. ✅ **Polycam scan** imported but deemed insufficient for precision work
+4. ✅ **Pivoted to declarative approach** - parametric model from dimensions
+5. ✅ **270° arc geometry** correctly oriented for right corner
+6. ✅ **True tapered surfaces** using loft operations (not stepped offsets)
+7. ✅ **Trim overhangs** on bases and cap
+8. ✅ **Tier offset** - visible step-in where tier2 starts narrower than tier1 ended
 
 ---
 
 ## Next Steps (Priority Order)
 
 ### Immediate
-1. **Commit current tapered model** — Capture the 2.1" → 1.7" taper
-2. **Add individual strip rendering** — Show 9 segments per tier with grout gaps
-3. **Validate strip widths** — Calculate actual face widths for each radius
+1. **Get actual measurements** for counter-to-mantel section
+2. **Validate/adjust radii** to match real tile strip widths
+3. **Add individual strip visualization** (9 segments per tier with grout gaps)
 
 ### Short-term
-4. **Define floor-to-counter section** — Get dimensions from user
-5. **Define mantel-to-cap section** — Get dimensions from user
-6. **Mirror geometry for left corner** — May be identical or reflected
+4. **Define floor-to-counter** section dimensions
+5. **Define mantel-to-cap** section dimensions
+6. **Mirror for left corner** (may be identical or reflected)
 
 ### Downstream
-7. **Router sled design** — SBR20 rail system for cutting strips (hardware acquired)
-8. **Export cut lists** — Generate strip dimensions for fabrication
-9. **FreeCAD integration** — TechDraw for dimensioned shop drawings
-
----
-
-## Technical Notes
-
-### 270° Arc Orientation
-The arc is oriented for the **right corner** of the fireplace when viewed from the front:
-- Arc starts at front facade (135°)
-- Wraps around outside corner clockwise
-- Ends at side wall (-135°)
-- 90° gap faces INTO the corner diagonal (180° / -X axis)
-
-### Build123d Approach
-Using **annulus minus wedge** subtraction method for reliable arc creation:
-```python
-# Full donut
-Circle(outer_radius)
-Circle(inner_radius, mode=Mode.SUBTRACT)
-# Subtract triangular wedge for 90° gap
-```
-
-Direct arc wire construction caused `TopoDS::Face` errors due to wire closure issues.
-
----
-
-## To Resume Work
-
-1. Open VS Code to `/root/projects/myFireplace`
-2. Attach tmux: `tmux attach -t cad-setup`
-3. Open OCP Viewer: Ctrl+Shift+P → "OCP CAD Viewer: Open Viewer"
-4. Pop viewer to right monitor
-5. Run: `python cad/corner_post_counter_to_mantel.py`
+7. **Router sled design** for cutting strips (SBR20 hardware acquired)
+8. **Export cut lists** with strip dimensions
+9. **FreeCAD TechDraw** for dimensioned shop drawings
 
 ---
 
 ## Questions for Next Session
 
-- Dimensions for floor-to-counter section?
-- Dimensions for mantel-to-cap section?
-- Are left and right corners mirror images or identical?
-- Exact plank dimensions available for tier 1 (wider strips)?
+- What are the actual measurements for counter-to-mantel height and tier breaks?
+- What plank widths are available? (affects achievable radii)
+- Are left and right corners symmetric?
+- Should base2 (the transition trim) be taller to accommodate the step-in offset?
+
+---
+
+## Technical Notes
+
+### Why Loft Instead of Extrude?
+Extrusion creates stepped cylinders. Lofting between two different-sized profiles creates true conical/tapered surfaces with angled walls.
+
+### 270° Arc Construction
+Build123d's wire-based arc construction had closure issues. Solution: create full annulus, then subtract a triangular 90° wedge.
+
+### Coordinate System
+- +Z = up (height)
+- Arc gap faces -X direction (180°)
+- For right corner: front facade at ~135°, side wall at ~-135°
+
+---
+
+*Session conducted with Claude Opus 4.5 via Claude Code CLI*
