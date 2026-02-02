@@ -214,36 +214,53 @@ collar_x = -COLLAR_DIST_FROM_BLADE - collar_width/2
 shaft_collar = collar_brace.part.move(Location((collar_x, 0, BLADE_CENTER_Z)))
 
 # =============================================================================
-# GRINDER REFERENCE GEOMETRY (for visualization only)
+# GRINDER REFERENCE GEOMETRY (detailed for visualization)
 # =============================================================================
 
-# Gear head (simplified cylinder)
+# Gear head - more realistic shape with flats for handle holes
 with BuildPart() as gear_head_ref:
+    # Main gear housing - slightly flattened on sides where handle holes are
     with BuildSketch(Plane.YZ):
-        Circle(GEAR_HEAD_DIA / 2)
+        # Rounded rectangle profile (gear head isn't perfectly round)
+        RectangleRounded(GEAR_HEAD_DIA, GEAR_HEAD_DIA * 0.85, radius=GEAR_HEAD_DIA * 0.3)
     extrude(amount=-GEAR_HEAD_LENGTH)
 
-    # Handle holes (visual reference)
-    with BuildSketch(Plane.XZ.offset(HANDLE_HOLE_SPACING/2)):
-        with Locations((-GEAR_HEAD_LENGTH/2, HANDLE_HOLE_HEIGHT)):
+    # Spindle boss (front protrusion where blade mounts)
+    with BuildSketch(Plane.YZ):
+        Circle(SPINDLE_DIA / 2 + 5)
+    extrude(amount=8)
+
+    # LEFT SIDE M10 threaded hole (this is what we bolt through!)
+    # Hole goes INTO the gear head from the left side
+    with BuildSketch(Plane.XZ.offset(GEAR_HEAD_DIA / 2)):
+        with Locations((-GEAR_HEAD_LENGTH / 2, HANDLE_HOLE_HEIGHT)):
             Circle(HANDLE_THREAD / 2)
-    extrude(amount=-10, mode=Mode.SUBTRACT)
-    with BuildSketch(Plane.XZ.offset(-HANDLE_HOLE_SPACING/2)):
-        with Locations((-GEAR_HEAD_LENGTH/2, HANDLE_HOLE_HEIGHT)):
+    extrude(amount=-15, mode=Mode.SUBTRACT)  # blind hole ~15mm deep
+
+    # RIGHT SIDE M10 threaded hole (mirror of left)
+    with BuildSketch(Plane.XZ.offset(-GEAR_HEAD_DIA / 2)):
+        with Locations((-GEAR_HEAD_LENGTH / 2, HANDLE_HOLE_HEIGHT)):
             Circle(HANDLE_THREAD / 2)
-    extrude(amount=10, mode=Mode.SUBTRACT)
+    extrude(amount=15, mode=Mode.SUBTRACT)  # blind hole ~15mm deep
 
 gear_head = gear_head_ref.part.move(Location((0, 0, BLADE_CENTER_Z)))
 
-# Motor body (cylinder)
+# Motor body (barrel you grip)
 with BuildPart() as motor_ref:
     with BuildSketch(Plane.YZ):
         Circle(MOTOR_BODY_DIA / 2)
     extrude(amount=-MOTOR_BODY_LENGTH)
 
+    # Collar ring where guard clamps (raised ring)
+    collar_x = -COLLAR_DIST_FROM_BLADE
+    with BuildSketch(Plane.YZ.offset(collar_x)):
+        Circle(COLLAR_RING_DIA / 2 + 2)
+        Circle(MOTOR_BODY_DIA / 2, mode=Mode.SUBTRACT)
+    extrude(amount=8)
+
 motor_body = motor_ref.part.move(Location((-GEAR_HEAD_LENGTH, 0, BLADE_CENTER_Z)))
 
-# Blade (disc)
+# Blade (disc with arbor hole)
 with BuildPart() as blade_ref:
     with BuildSketch(Plane.YZ):
         Circle(BLADE_DIA / 2)
@@ -251,6 +268,25 @@ with BuildPart() as blade_ref:
     extrude(amount=BLADE_THICKNESS)
 
 blade = blade_ref.part.move(Location((BLADE_THICKNESS/2, 0, BLADE_CENTER_Z)))
+
+# M10 BOLTS (show the bolts that go through brackets into grinder)
+with BuildPart() as bolt_left_ref:
+    # Bolt head
+    with BuildSketch(Plane.XZ):
+        RegularPolygon(radius=8, side_count=6)  # M10 hex head ~16mm across flats
+    extrude(amount=7)
+    # Bolt shank
+    with BuildSketch(Plane.XZ):
+        Circle(HANDLE_THREAD / 2)
+    extrude(amount=-30)  # through bracket into grinder
+
+bolt_left = bolt_left_ref.part.move(Location((
+    -GEAR_HEAD_LENGTH / 2,
+    GEAR_HEAD_DIA / 2 + BRACKET_STEEL + 2,  # outside of bracket
+    BLADE_CENTER_Z + HANDLE_HOLE_HEIGHT
+)))
+
+bolt_right = mirror(bolt_left, about=Plane.XZ)
 
 # =============================================================================
 # DISPLAY ASSEMBLY
@@ -265,6 +301,8 @@ show_object(shaft_collar, name="Shaft Collar Brace", options={"color": (85, 85, 
 show_object(gear_head, name="Grinder Gear Head (ref)", options={"color": (40, 120, 40), "alpha": 0.4})
 show_object(motor_body, name="Grinder Motor Body (ref)", options={"color": (50, 50, 60), "alpha": 0.3})
 show_object(blade, name="Blade (ref)", options={"color": (180, 50, 50), "alpha": 0.4})
+show_object(bolt_left, name="M10 Bolt Left", options={"color": (30, 30, 35)})
+show_object(bolt_right, name="M10 Bolt Right", options={"color": (30, 30, 35)})
 
 # =============================================================================
 # OUTPUT SUMMARY
