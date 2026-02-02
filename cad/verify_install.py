@@ -33,15 +33,14 @@ with BuildPart() as test_part:
             Circle(0.15 * INCH)
     extrude(amount=-0.25 * INCH, mode=Mode.SUBTRACT)
     
-    # Fillet the base-to-wall junction
-    wall_edges = test_part.edges().filter_by(Axis.X).sort_by(Axis.Z)
-    if len(wall_edges) > 2:
-        fillet(wall_edges[2:4], radius=0.125 * INCH)
+    # Optional: fillet edges (commented out - can cause issues with edge selection)
+    # vertical_edges = test_part.edges().filter_by(Axis.Z)
+    # fillet(vertical_edges[:2], radius=0.05 * INCH)
 
 print(f"Test part created: {test_part.part.bounding_box()}")
 print("Sending to OCP CAD Viewer...")
 
-show(test_part, name="Verification Part")
+show(test_part)
 
 print("")
 print("="*50)

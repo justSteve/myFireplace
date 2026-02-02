@@ -24,10 +24,11 @@ myFireplace/
 │   └── polycam-integration.md         # 3D scanning workflow
 ├── cad/
 │   ├── README.md                # Environment setup instructions
-│   └── verify_install.py       # Build123d installation test
-├── sketchup/
-│   ├── tile_cutting_jig.rb     # Parametric jig model (SketchUp Ruby)
-│   └── corner_post.rb          # Corner post calculator & model
+│   ├── verify_install.py        # Build123d installation test
+│   └── view_polycam_scan.py     # Load Polycam STL into viewer
+├── polycam/
+│   ├── 2_1_2026.stl             # Fireplace corner scan (mesh)
+│   └── 2_1_2026.zip             # OBJ + texture export
 └── visualizations/
     └── tile-cutting-jig.html   # Interactive SVG jig diagram
 ```
@@ -108,7 +109,7 @@ This gives code-on-left, interactive-3D-on-right inside VS Code. The model IS a 
 - **CadQuery**: Same kernel, less readable API. Viable fallback.
 - **FreeCAD**: Most capable GUI CAD. Use downstream for TechDraw dimensioned drawings.
 - **OpenSCAD**: CSG-only, no fillets/chamfers. Insufficient.
-- **SketchUp Pro**: Web version lacks scripting. Desktop has no VS Code integration.
+- **SketchUp Pro**: Subscription expired. Was limited anyway — web version lacks scripting, desktop has no VS Code integration.
 
 See decision doc for full scorecard and rationale.
 
