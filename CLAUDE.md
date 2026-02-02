@@ -124,11 +124,11 @@ Polycam Basic subscription adds real-world-to-digital pipeline:
 
 ### Environment Setup Status
 
-- [ ] WSL version confirmed (Ubuntu?)
-- [ ] VS Code WSL extension verified
-- [ ] Build123d + ocp-vscode installed in WSL venv
-- [ ] OCP CAD Viewer extension installed
-- [ ] Verification script (`cad/verify_install.py`) runs successfully
+- [x] WSL version confirmed (Ubuntu 24.04.3 LTS)
+- [x] VS Code WSL extension verified
+- [x] Build123d + ocp-vscode installed in WSL venv (`/root/cad/.venv`)
+- [x] OCP CAD Viewer extension installed (`bernhard-42.ocp-cad-viewer`)
+- [x] Verification script (`cad/verify_install.py`) runs successfully
 - [ ] Polycam scan exported and imported
 
 ---
@@ -346,9 +346,9 @@ Still a generous firebox (~27" × 20" × 20"). Channel space (~10") reserved for
 3. Confirm ~12" clearance above firebox to flue (estimated, may allow above-firebox secondary chamber)
 
 ### Pending (requires setup)
-1. WSL environment details (Ubuntu version)
-2. VS Code WSL extension status
-3. Build123d environment installation
+1. ~~WSL environment details~~ → Ubuntu 24.04.3 LTS ✓
+2. ~~VS Code WSL extension status~~ → Working ✓
+3. ~~Build123d environment installation~~ → Verified ✓
 4. Polycam scan export and import test
 
 ### Design Decisions
