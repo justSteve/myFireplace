@@ -1,99 +1,170 @@
 # %% Corner Post: Counter-to-Mantel Section
-# Parametric model of the 270° corner post
+# Parametric model with TAPER - wider at bottom, narrower at top
 
 from build123d import *
 from ocp_vscode import show
-from math import cos, sin, radians
+from math import cos, sin, radians, pi
 
 # === UNITS ===
 INCH = 25.4  # mm
 
-# === POST GEOMETRY (from CLAUDE.md) ===
+# === POST GEOMETRY ===
 ARC_ANGLE = 270  # degrees (360 - 90° corner)
-POST_RADIUS = 1.7 * INCH  # outer radius of post
 STRIP_COUNT = 9
-STRIP_FACE_WIDTH = 13/16 * INCH  # visible face width
 GROUT_GAP = 1/8 * INCH
 TILE_THICKNESS = 0.25 * INCH
+
+# === TAPER: Two different radii ===
+# Tier 1 (lower): wider plank, larger radius
+TIER1_RADIUS = 2.1 * INCH
+
+# Tier 2 (upper): standard 8" plank, smaller radius
+TIER2_RADIUS = 1.7 * INCH
 
 # === COUNTER-TO-MANTEL DIMENSIONS ===
 TOTAL_HEIGHT = 28 * INCH
 
-# Vertical sections (bottom to top)
 BASE_HEIGHT = 1 * INCH
-TIER1_HEIGHT = 10 * INCH
+TIER1_HEIGHT = 8 * INCH
 BASE2_HEIGHT = 1 * INCH
 CAP_HEIGHT = 3 * INCH
 TIER2_HEIGHT = TOTAL_HEIGHT - (BASE_HEIGHT + TIER1_HEIGHT + BASE2_HEIGHT + CAP_HEIGHT)
 
-print("=== Counter-to-Mantel Corner Post ===")
+print("=== Counter-to-Mantel Corner Post (TAPERED) ===")
 print(f"Total height: {TOTAL_HEIGHT/INCH:.1f}\"")
-print(f"  Base:    {BASE_HEIGHT/INCH:.1f}\"")
-print(f"  Tier 1:  {TIER1_HEIGHT/INCH:.1f}\"")
-print(f"  Base 2:  {BASE2_HEIGHT/INCH:.1f}\"")
-print(f"  Tier 2:  {TIER2_HEIGHT/INCH:.1f}\"")
-print(f"  Cap:     {CAP_HEIGHT/INCH:.1f}\"")
-print(f"Post radius: {POST_RADIUS/INCH:.2f}\"")
-print(f"Arc: {ARC_ANGLE}°")
+print(f"  Base:    {BASE_HEIGHT/INCH:.1f}\" @ r={TIER1_RADIUS/INCH:.2f}\"")
+print(f"  Tier 1:  {TIER1_HEIGHT/INCH:.1f}\" @ r={TIER1_RADIUS/INCH:.2f}\"")
+print(f"  Base 2:  {BASE2_HEIGHT/INCH:.1f}\" (transition)")
+print(f"  Tier 2:  {TIER2_HEIGHT/INCH:.1f}\" @ r={TIER2_RADIUS/INCH:.2f}\"")
+print(f"  Cap:     {CAP_HEIGHT/INCH:.1f}\" @ r={TIER2_RADIUS/INCH:.2f}\"")
 print()
 
-# %% Build the post profile
-# Create 270° arc sections at each height
+# %% Helper: create 270° arc section
+def make_arc_section(height, outer_radius, z_offset):
+    """Create a 270° arc tube section"""
+    inner_radius = outer_radius - TILE_THICKNESS
 
-def make_arc_section(height, inner_radius, outer_radius, z_offset, name="section"):
-    """Create a 270° arc tube section by subtracting wedge from annulus"""
     with BuildPart() as section:
-        # Create full annulus (donut)
         with BuildSketch(Plane.XY.offset(z_offset)):
             Circle(outer_radius)
             Circle(inner_radius, mode=Mode.SUBTRACT)
         extrude(amount=height)
 
-        # Subtract a 90° pie wedge to leave 270°
-        # Gap faces into corner diagonal - rotated 45° right from before
-        # Wedge spans from 135° to 225° (centered on 180°, the -X axis)
-        wedge_radius = outer_radius * 1.5  # extend beyond the arc
-        r = wedge_radius
-        diag = r * 0.7071  # cos/sin of 45°
+        # Remove 90° wedge (centered on 180°, the -X axis)
+        r = outer_radius * 2
+        diag = r * 0.7071
         with BuildSketch(Plane.XY.offset(z_offset - 1)):
             with BuildLine():
-                # Triangle from center to 135° to 225° back to center
                 Line((0, 0), (-diag, diag))      # to 135°
                 Line((-diag, diag), (-diag, -diag))  # to 225°
-                Line((-diag, -diag), (0, 0))     # back to center
+                Line((-diag, -diag), (0, 0))     # back
             make_face()
         extrude(amount=height + 2, mode=Mode.SUBTRACT)
 
     return section.part
 
-# Inner radius (post radius minus tile thickness)
-INNER_RADIUS = POST_RADIUS - TILE_THICKNESS
+# %% Helper: create individual strips for a tier
+def make_tier_with_strips(height, outer_radius, z_offset):
+    """Create a tier as individual strip segments"""
+    inner_radius = outer_radius - TILE_THICKNESS
+    strips = []
 
-# Build each section
+    angle_per_strip = ARC_ANGLE / STRIP_COUNT  # 30°
+    grout_angle = 1.0  # simplified: 1° gap between strips
+
+    for i in range(STRIP_COUNT):
+        # Strip angular range: from 135° going clockwise
+        strip_start = 135 - (i * angle_per_strip)
+        strip_end = strip_start - angle_per_strip + grout_angle
+
+        with BuildPart() as strip:
+            # Full annulus
+            with BuildSketch(Plane.XY.offset(z_offset)):
+                Circle(outer_radius)
+                Circle(inner_radius, mode=Mode.SUBTRACT)
+            extrude(amount=height)
+
+            # Remove everything outside this strip
+            r = outer_radius * 2
+
+            # Wedge before strip (from 135° to strip_start)
+            if strip_start < 135:
+                with BuildSketch(Plane.XY.offset(z_offset - 0.5)):
+                    with Locations((r/2 * cos(radians((135 + strip_start)/2)),
+                                    r/2 * sin(radians((135 + strip_start)/2)))):
+                        Rectangle(r, r, rotation=(135 + strip_start)/2 - 90)
+                extrude(amount=height + 1, mode=Mode.SUBTRACT)
+
+            # Wedge after strip (from strip_end to -135°)
+            if strip_end > -135:
+                with BuildSketch(Plane.XY.offset(z_offset - 0.5)):
+                    with Locations((r/2 * cos(radians((strip_end + -135)/2)),
+                                    r/2 * sin(radians((strip_end + -135)/2)))):
+                        Rectangle(r, r, rotation=(strip_end + -135)/2 - 90)
+                extrude(amount=height + 1, mode=Mode.SUBTRACT)
+
+            # Always remove the corner gap (135° to 225°)
+            diag = r * 0.7071
+            with BuildSketch(Plane.XY.offset(z_offset - 0.5)):
+                with BuildLine():
+                    Line((0, 0), (-diag, diag))
+                    Line((-diag, diag), (-diag, -diag))
+                    Line((-diag, -diag), (0, 0))
+                make_face()
+            extrude(amount=height + 1, mode=Mode.SUBTRACT)
+
+        strips.append(strip.part)
+
+    return strips
+
+# %% Build the tapered post
+parts = []
+colors = []
+names = []
 z = 0
 
-base = make_arc_section(BASE_HEIGHT, INNER_RADIUS * 0.95, POST_RADIUS * 1.02, z, "base")
+# Base (wider)
+print("Building base...")
+base = make_arc_section(BASE_HEIGHT, TIER1_RADIUS * 1.02, z)
+parts.append(base)
+colors.append("slategray")
+names.append(f"Base 1\" @ {TIER1_RADIUS/INCH:.1f}\"r")
 z += BASE_HEIGHT
 
-tier1 = make_arc_section(TIER1_HEIGHT, INNER_RADIUS, POST_RADIUS, z, "tier1")
+# Tier 1 (wider)
+print("Building tier 1...")
+tier1 = make_arc_section(TIER1_HEIGHT, TIER1_RADIUS, z)
+parts.append(tier1)
+colors.append("sienna")
+names.append(f"Tier1 8\" @ {TIER1_RADIUS/INCH:.1f}\"r")
 z += TIER1_HEIGHT
 
-base2 = make_arc_section(BASE2_HEIGHT, INNER_RADIUS * 0.95, POST_RADIUS * 1.02, z, "base2")
+# Base 2 (transition)
+print("Building base 2 (transition)...")
+base2 = make_arc_section(BASE2_HEIGHT, (TIER1_RADIUS + TIER2_RADIUS) / 2, z)
+parts.append(base2)
+colors.append("darkgray")
+names.append("Base2 1\" (transition)")
 z += BASE2_HEIGHT
 
-tier2 = make_arc_section(TIER2_HEIGHT, INNER_RADIUS, POST_RADIUS, z, "tier2")
+# Tier 2 (narrower)
+print("Building tier 2...")
+tier2 = make_arc_section(TIER2_HEIGHT, TIER2_RADIUS, z)
+parts.append(tier2)
+colors.append("peru")
+names.append(f"Tier2 15\" @ {TIER2_RADIUS/INCH:.1f}\"r")
 z += TIER2_HEIGHT
 
-cap = make_arc_section(CAP_HEIGHT, INNER_RADIUS * 0.95, POST_RADIUS * 1.02, z, "cap")
+# Cap (narrower)
+print("Building cap...")
+cap = make_arc_section(CAP_HEIGHT, TIER2_RADIUS * 1.02, z)
+parts.append(cap)
+colors.append("dimgray")
+names.append(f"Cap 3\" @ {TIER2_RADIUS/INCH:.1f}\"r")
 
-print("Sections created. Sending to viewer...")
+print(f"\nTaper visible: {TIER1_RADIUS/INCH:.2f}\" → {TIER2_RADIUS/INCH:.2f}\" radius")
+print("Sending to viewer...")
 
-# %% Display
-# Show all sections with different colors
-show(
-    base, tier1, base2, tier2, cap,
-    colors=["gray", "sienna", "gray", "sienna", "gray"],
-    names=["Base (1\")", "Tier 1 (10\")", "Base 2 (1\")", "Tier 2 (13\")", "Cap (3\")"],
-)
+show(*parts, colors=colors, names=names)
 
-print("Done! Rotate view to see 270° arc profile.")
+print("Done! Note the wider base/tier1 vs narrower tier2/cap.")
