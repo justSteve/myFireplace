@@ -6,10 +6,11 @@ from ocp_vscode import show
 
 INCH = 25.4
 
-# Three radii for the taper progression (tier surfaces)
-WIDE_RADIUS = 2.3 * INCH    # Tier1 bottom
-MID_RADIUS = 1.9 * INCH     # Tier1 top = Tier2 bottom
-NARROW_RADIUS = 1.5 * INCH  # Tier2 top
+# Four radii for the taper progression (tier surfaces)
+WIDE_RADIUS = 2.3 * INCH       # Tier1 bottom
+TIER1_TOP = 1.9 * INCH         # Tier1 top (Base2 matches this)
+TIER2_START = 1.7 * INCH       # Tier2 bottom (noticeably smaller than Tier1 top)
+NARROW_RADIUS = 1.4 * INCH     # Tier2 top
 THICKNESS = 0.25 * INCH
 
 # Overhang for bases/caps (creates trim/molding effect)
@@ -24,15 +25,16 @@ CAP_HEIGHT = 3 * INCH
 
 TOTAL = BASE1_HEIGHT + TIER1_HEIGHT + BASE2_HEIGHT + TIER2_HEIGHT + CAP_HEIGHT
 
-print("=== FULL 5-SECTION TAPERED MODEL WITH OVERHANGS ===")
+print("=== FULL 5-SECTION TAPERED MODEL WITH OVERHANGS + OFFSET ===")
 print(f"Total height: {TOTAL/INCH:.0f}\"")
-print(f"Overhang: {OVERHANG/INCH:.2f}\" (bases/caps extend beyond tiers)")
+print(f"Overhang: {OVERHANG/INCH:.2f}\" | Tier2 offset: {(TIER1_TOP - TIER2_START)/INCH:.1f}\" step-in")
 print()
-print(f"1. Base1:  {BASE1_HEIGHT/INCH:.0f}\" @ r={WIDE_RADIUS/INCH:.1f}\" + {OVERHANG/INCH:.2f}\" overhang")
-print(f"2. Tier1:  {TIER1_HEIGHT/INCH:.0f}\" @ r={WIDE_RADIUS/INCH:.1f}\" → {MID_RADIUS/INCH:.1f}\" (TAPERED)")
-print(f"3. Base2:  {BASE2_HEIGHT/INCH:.0f}\" @ r={MID_RADIUS/INCH:.1f}\" + {OVERHANG/INCH:.2f}\" overhang")
-print(f"4. Tier2:  {TIER2_HEIGHT/INCH:.0f}\" @ r={MID_RADIUS/INCH:.1f}\" → {NARROW_RADIUS/INCH:.1f}\" (TAPERED)")
-print(f"5. Cap:    {CAP_HEIGHT/INCH:.0f}\" @ r={NARROW_RADIUS/INCH:.1f}\" + {OVERHANG/INCH:.2f}\" overhang")
+print(f"1. Base1:  {BASE1_HEIGHT/INCH:.0f}\" @ r={WIDE_RADIUS/INCH:.1f}\" + overhang")
+print(f"2. Tier1:  {TIER1_HEIGHT/INCH:.0f}\" @ r={WIDE_RADIUS/INCH:.1f}\" → {TIER1_TOP/INCH:.1f}\" (TAPERED)")
+print(f"3. Base2:  {BASE2_HEIGHT/INCH:.0f}\" @ r={TIER1_TOP/INCH:.1f}\" + overhang")
+print(f"   ──── OFFSET: {(TIER1_TOP - TIER2_START)/INCH:.1f}\" step-in ────")
+print(f"4. Tier2:  {TIER2_HEIGHT/INCH:.0f}\" @ r={TIER2_START/INCH:.1f}\" → {NARROW_RADIUS/INCH:.1f}\" (TAPERED)")
+print(f"5. Cap:    {CAP_HEIGHT/INCH:.0f}\" @ r={NARROW_RADIUS/INCH:.1f}\" + overhang")
 print()
 
 def make_constant_arc(height, radius, z_offset):
@@ -97,25 +99,25 @@ colors.append("slategray")
 names.append(f"Base1 {BASE1_HEIGHT/INCH:.0f}\" (overhang)")
 z += BASE1_HEIGHT
 
-# 2. Tier1 (TAPERED wide → mid)
+# 2. Tier1 (TAPERED wide → tier1_top)
 print("Building Tier1 (tapered)...")
-tier1 = make_tapered_arc(TIER1_HEIGHT, WIDE_RADIUS, MID_RADIUS, z)
+tier1 = make_tapered_arc(TIER1_HEIGHT, WIDE_RADIUS, TIER1_TOP, z)
 parts.append(tier1)
 colors.append("sienna")
 names.append(f"Tier1 {TIER1_HEIGHT/INCH:.0f}\" (TAPERED)")
 z += TIER1_HEIGHT
 
-# 3. Base2 (constant, mid + overhang - creates trim between tiers)
+# 3. Base2 (constant, tier1_top + overhang - creates trim between tiers)
 print("Building Base2...")
-base2 = make_constant_arc(BASE2_HEIGHT, MID_RADIUS + OVERHANG, z)
+base2 = make_constant_arc(BASE2_HEIGHT, TIER1_TOP + OVERHANG, z)
 parts.append(base2)
 colors.append("darkgray")
 names.append(f"Base2 {BASE2_HEIGHT/INCH:.0f}\" (overhang)")
 z += BASE2_HEIGHT
 
-# 4. Tier2 (TAPERED mid → narrow)
-print("Building Tier2 (tapered)...")
-tier2 = make_tapered_arc(TIER2_HEIGHT, MID_RADIUS, NARROW_RADIUS, z)
+# 4. Tier2 (TAPERED tier2_start → narrow) — OFFSET from tier1 top
+print("Building Tier2 (tapered, offset start)...")
+tier2 = make_tapered_arc(TIER2_HEIGHT, TIER2_START, NARROW_RADIUS, z)
 parts.append(tier2)
 colors.append("peru")
 names.append(f"Tier2 {TIER2_HEIGHT/INCH:.0f}\" (TAPERED)")
