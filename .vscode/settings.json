@@ -1,0 +1,12 @@
+{
+    // myFireplace CAD workspace settings
+    // Python interpreter for Build123d
+    "python.defaultInterpreterPath": "/root/cad/.venv/bin/python",
+
+    // Editor settings - adjust to match your preferred layout
+    "editor.fontSize": 14,
+    "terminal.integrated.fontSize": 13,
+
+    // OCP CAD Viewer settings
+    "ocp_vscode.port": 3939
+}
