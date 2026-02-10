@@ -1,170 +1,245 @@
-# %% Corner Post: Counter-to-Mantel Section
-# Parametric model with TAPER - wider at bottom, narrower at top
+# %% Full 5-Section Model: Two tapered tiers with constant bases/cap
+# Base1 → Tier1 (tapered) → Base2 → Tier2 (constant) → Cap
 
 from build123d import *
 from ocp_vscode import show
-from math import cos, sin, radians, pi
+import math
 
-# === UNITS ===
-INCH = 25.4  # mm
+INCH = 25.4
 
-# === POST GEOMETRY ===
-ARC_ANGLE = 270  # degrees (360 - 90° corner)
-STRIP_COUNT = 9
-GROUT_GAP = 1/8 * INCH
-TILE_THICKNESS = 0.25 * INCH
+# Tier1 strip parameters (rounded to 1/10")
+N_STRIPS = 12
+GROUT_WIDTH = 0.125 * INCH  # 1/8"
 
-# === TAPER: Two different radii ===
-# Tier 1 (lower): wider plank, larger radius
-TIER1_RADIUS = 2.1 * INCH
+# Rounded dimensions for cutting
+WIDE_RADIUS = 4.0 * INCH           # Tier1 bottom radius
+TIER1_TOP = 2.8 * INCH             # Tier1 top radius
+BOTTOM_STRIP_WIDTH = 1.5 * INCH    # Strip width at bottom
+TOP_STRIP_WIDTH = 1.0 * INCH       # Strip width at top
 
-# Tier 2 (upper): standard 8" plank, smaller radius
-TIER2_RADIUS = 1.7 * INCH
+# Tier2: constant radius (no taper)
+TIER2_RADIUS = 2.5 * INCH
+THICKNESS = 0.25 * INCH
 
-# === COUNTER-TO-MANTEL DIMENSIONS ===
-TOTAL_HEIGHT = 28 * INCH
+# Overhang for bases/caps (creates trim/molding effect)
+OVERHANG = 0.15 * INCH      # how much bases/caps extend beyond tiers
 
-BASE_HEIGHT = 1 * INCH
-TIER1_HEIGHT = 8 * INCH
+# Heights (total 28")
+BASE1_HEIGHT = 1 * INCH
+TIER1_HEIGHT = 8 * INCH      # tapered: WIDE → TIER1_TOP
 BASE2_HEIGHT = 1 * INCH
+TIER2_HEIGHT = 15 * INCH     # constant radius
 CAP_HEIGHT = 3 * INCH
-TIER2_HEIGHT = TOTAL_HEIGHT - (BASE_HEIGHT + TIER1_HEIGHT + BASE2_HEIGHT + CAP_HEIGHT)
 
-print("=== Counter-to-Mantel Corner Post (TAPERED) ===")
-print(f"Total height: {TOTAL_HEIGHT/INCH:.1f}\"")
-print(f"  Base:    {BASE_HEIGHT/INCH:.1f}\" @ r={TIER1_RADIUS/INCH:.2f}\"")
-print(f"  Tier 1:  {TIER1_HEIGHT/INCH:.1f}\" @ r={TIER1_RADIUS/INCH:.2f}\"")
-print(f"  Base 2:  {BASE2_HEIGHT/INCH:.1f}\" (transition)")
-print(f"  Tier 2:  {TIER2_HEIGHT/INCH:.1f}\" @ r={TIER2_RADIUS/INCH:.2f}\"")
-print(f"  Cap:     {CAP_HEIGHT/INCH:.1f}\" @ r={TIER2_RADIUS/INCH:.2f}\"")
+TOTAL = BASE1_HEIGHT + TIER1_HEIGHT + BASE2_HEIGHT + TIER2_HEIGHT + CAP_HEIGHT
+
+print("=== FULL 5-SECTION MODEL WITH SEGMENTS ===")
+print(f"Total height: {TOTAL/INCH:.0f}\"")
+print(f"Tier1: {N_STRIPS} strips, {BOTTOM_STRIP_WIDTH/INCH:.2f}\" bottom → {TOP_STRIP_WIDTH/INCH:.2f}\" top, {GROUT_WIDTH/INCH:.3f}\" grout")
+print(f"       Radii: {WIDE_RADIUS/INCH:.2f}\" → {TIER1_TOP/INCH:.2f}\" (tapered)")
+print(f"Tier2: constant @ {TIER2_RADIUS/INCH:.2f}\" radius")
+print()
+print(f"1. Base1:  {BASE1_HEIGHT/INCH:.0f}\" @ r={WIDE_RADIUS/INCH:.2f}\" + overhang")
+print(f"2. Tier1:  {TIER1_HEIGHT/INCH:.0f}\" @ r={WIDE_RADIUS/INCH:.2f}\" → {TIER1_TOP/INCH:.2f}\" ({N_STRIPS} SEGMENTS)")
+print(f"3. Base2:  {BASE2_HEIGHT/INCH:.0f}\" @ r={TIER1_TOP/INCH:.2f}\" + overhang")
+print(f"4. Tier2:  {TIER2_HEIGHT/INCH:.0f}\" @ r={TIER2_RADIUS/INCH:.2f}\" (constant)")
+print(f"5. Cap:    {CAP_HEIGHT/INCH:.0f}\" @ r={TIER2_RADIUS/INCH:.2f}\" + overhang")
 print()
 
-# %% Helper: create 270° arc section
-def make_arc_section(height, outer_radius, z_offset):
-    """Create a 270° arc tube section"""
-    inner_radius = outer_radius - TILE_THICKNESS
-
+def make_constant_arc(height, radius, z_offset):
+    """Constant-radius 270° arc (cylindrical)"""
+    inner = radius - THICKNESS
     with BuildPart() as section:
         with BuildSketch(Plane.XY.offset(z_offset)):
-            Circle(outer_radius)
-            Circle(inner_radius, mode=Mode.SUBTRACT)
+            Circle(radius)
+            Circle(inner, mode=Mode.SUBTRACT)
         extrude(amount=height)
-
-        # Remove 90° wedge (centered on 180°, the -X axis)
-        r = outer_radius * 2
+        # Cut 90° wedge
+        r = radius * 2
         diag = r * 0.7071
         with BuildSketch(Plane.XY.offset(z_offset - 1)):
             with BuildLine():
-                Line((0, 0), (-diag, diag))      # to 135°
-                Line((-diag, diag), (-diag, -diag))  # to 225°
-                Line((-diag, -diag), (0, 0))     # back
+                Line((0, 0), (-diag, diag))
+                Line((-diag, diag), (-diag, -diag))
+                Line((-diag, -diag), (0, 0))
+            make_face()
+        extrude(amount=height + 2, mode=Mode.SUBTRACT)
+    return section.part
+
+def make_tapered_arc(height, bottom_radius, top_radius, z_offset):
+    """Tapered 270° arc (lofted, angled surfaces)"""
+    bottom_inner = bottom_radius - THICKNESS
+    top_inner = top_radius - THICKNESS
+
+    with BuildSketch(Plane.XY.offset(z_offset)) as bottom:
+        Circle(bottom_radius)
+        Circle(bottom_inner, mode=Mode.SUBTRACT)
+
+    with BuildSketch(Plane.XY.offset(z_offset + height)) as top:
+        Circle(top_radius)
+        Circle(top_inner, mode=Mode.SUBTRACT)
+
+    with BuildPart() as tapered:
+        loft([bottom.sketch, top.sketch])
+        # Cut 90° wedge
+        r = bottom_radius * 2
+        diag = r * 0.7071
+        with BuildSketch(Plane.XY.offset(z_offset - 1)):
+            with BuildLine():
+                Line((0, 0), (-diag, diag))
+                Line((-diag, diag), (-diag, -diag))
+                Line((-diag, -diag), (0, 0))
             make_face()
         extrude(amount=height + 2, mode=Mode.SUBTRACT)
 
-    return section.part
+    return tapered.part
 
-# %% Helper: create individual strips for a tier
-def make_tier_with_strips(height, outer_radius, z_offset):
-    """Create a tier as individual strip segments"""
-    inner_radius = outer_radius - TILE_THICKNESS
+def make_tapered_strips(height, bottom_radius, top_radius, z_offset, n_strips, grout_width):
+    """Create individual tapered strips by cutting grout lines through full arc"""
+    # First create the full tapered arc
+    full_arc = make_tapered_arc(height, bottom_radius, top_radius, z_offset)
+
+    # Calculate circumferences
+    bottom_circ = 2 * math.pi * bottom_radius * 0.75  # 270°
+    top_circ = 2 * math.pi * top_radius * 0.75
+
+    # Calculate strip widths (linear)
+    bottom_strip_w = (bottom_circ - (n_strips - 1) * grout_width) / n_strips
+    top_strip_w = (top_circ - (n_strips - 1) * grout_width) / n_strips
+
+    # Convert to angular widths (degrees)
+    bottom_strip_angle = (bottom_strip_w / bottom_circ) * 270
+    bottom_grout_angle = (grout_width / bottom_circ) * 270
+    top_strip_angle = (top_strip_w / top_circ) * 270
+    top_grout_angle = (grout_width / top_circ) * 270
+
+    # Cut grout lines (n_strips - 1 cuts)
+    # Start at -135° to center the 270° arc around the -X axis
+    bottom_angle = -135 + bottom_strip_angle  # After first strip
+    top_angle = -135 + top_strip_angle
+
+    r_cut = bottom_radius * 1.5  # Extend beyond arc
+
     strips = []
+    remaining = full_arc
 
-    angle_per_strip = ARC_ANGLE / STRIP_COUNT  # 30°
-    grout_angle = 1.0  # simplified: 1° gap between strips
+    for i in range(n_strips - 1):
+        # Grout line center angles
+        b_center = bottom_angle + bottom_grout_angle / 2
+        t_center = top_angle + top_grout_angle / 2
 
-    for i in range(STRIP_COUNT):
-        # Strip angular range: from 135° going clockwise
-        strip_start = 135 - (i * angle_per_strip)
-        strip_end = strip_start - angle_per_strip + grout_angle
+        # Create a thin radial wedge to cut the grout line
+        # Use average angle and cut a rectangular slot radially
+        avg_angle = (b_center + t_center) / 2
 
-        with BuildPart() as strip:
-            # Full annulus
-            with BuildSketch(Plane.XY.offset(z_offset)):
-                Circle(outer_radius)
-                Circle(inner_radius, mode=Mode.SUBTRACT)
-            extrude(amount=height)
+        # Create grout cut as a box rotated to radial direction
+        with BuildPart() as grout_cut:
+            with BuildSketch(Plane.XY.offset(z_offset - 1)):
+                with Locations((0, 0)):
+                    Rectangle(r_cut, grout_width)
+            extrude(amount=height + 2)
 
-            # Remove everything outside this strip
-            r = outer_radius * 2
+        grout_box = grout_cut.part.rotate(Axis.Z, avg_angle)
+        remaining = remaining - grout_box
 
-            # Wedge before strip (from 135° to strip_start)
-            if strip_start < 135:
-                with BuildSketch(Plane.XY.offset(z_offset - 0.5)):
-                    with Locations((r/2 * cos(radians((135 + strip_start)/2)),
-                                    r/2 * sin(radians((135 + strip_start)/2)))):
-                        Rectangle(r, r, rotation=(135 + strip_start)/2 - 90)
-                extrude(amount=height + 1, mode=Mode.SUBTRACT)
+        # Advance to next grout position
+        bottom_angle += bottom_strip_angle + bottom_grout_angle
+        top_angle += top_strip_angle + top_grout_angle
 
-            # Wedge after strip (from strip_end to -135°)
-            if strip_end > -135:
-                with BuildSketch(Plane.XY.offset(z_offset - 0.5)):
-                    with Locations((r/2 * cos(radians((strip_end + -135)/2)),
-                                    r/2 * sin(radians((strip_end + -135)/2)))):
-                        Rectangle(r, r, rotation=(strip_end + -135)/2 - 90)
-                extrude(amount=height + 1, mode=Mode.SUBTRACT)
+    # Split into individual parts
+    strips = remaining.solids()
+    return list(strips)
 
-            # Always remove the corner gap (135° to 225°)
-            diag = r * 0.7071
-            with BuildSketch(Plane.XY.offset(z_offset - 0.5)):
-                with BuildLine():
-                    Line((0, 0), (-diag, diag))
-                    Line((-diag, diag), (-diag, -diag))
-                    Line((-diag, -diag), (0, 0))
-                make_face()
-            extrude(amount=height + 1, mode=Mode.SUBTRACT)
-
-        strips.append(strip.part)
-
-    return strips
-
-# %% Build the tapered post
+# Build stack
+z = 0
 parts = []
 colors = []
 names = []
-z = 0
 
-# Base (wider)
-print("Building base...")
-base = make_arc_section(BASE_HEIGHT, TIER1_RADIUS * 1.02, z)
-parts.append(base)
-colors.append("slategray")
-names.append(f"Base 1\" @ {TIER1_RADIUS/INCH:.1f}\"r")
-z += BASE_HEIGHT
+# 1 & 2. Base1 + Tier1 with continuous grout lines
+print("Building Base1 + Tier1 with grout lines...")
 
-# Tier 1 (wider)
-print("Building tier 1...")
-tier1 = make_arc_section(TIER1_HEIGHT, TIER1_RADIUS, z)
-parts.append(tier1)
-colors.append("sienna")
-names.append(f"Tier1 8\" @ {TIER1_RADIUS/INCH:.1f}\"r")
-z += TIER1_HEIGHT
+# Build Base1 (constant) and Tier1 (tapered) as one unit, then cut grout
+base1_z = z
+base1 = make_constant_arc(BASE1_HEIGHT, WIDE_RADIUS + OVERHANG, base1_z)
+tier1_z = z + BASE1_HEIGHT
+tier1_full = make_tapered_arc(TIER1_HEIGHT, WIDE_RADIUS, TIER1_TOP, tier1_z)
 
-# Base 2 (transition)
-print("Building base 2 (transition)...")
-base2 = make_arc_section(BASE2_HEIGHT, (TIER1_RADIUS + TIER2_RADIUS) / 2, z)
+# Calculate grout cut positions (same as in make_tapered_strips)
+bottom_circ = 2 * math.pi * WIDE_RADIUS * 0.75
+top_circ = 2 * math.pi * TIER1_TOP * 0.75
+bottom_strip_w = (bottom_circ - (N_STRIPS - 1) * GROUT_WIDTH) / N_STRIPS
+top_strip_w = (top_circ - (N_STRIPS - 1) * GROUT_WIDTH) / N_STRIPS
+bottom_strip_angle = (bottom_strip_w / bottom_circ) * 270
+bottom_grout_angle = (GROUT_WIDTH / bottom_circ) * 270
+top_strip_angle = (top_strip_w / top_circ) * 270
+top_grout_angle = (GROUT_WIDTH / top_circ) * 270
+
+# Cut grout lines through both Base1 and Tier1
+bottom_angle = -135 + bottom_strip_angle
+top_angle = -135 + top_strip_angle
+r_cut = (WIDE_RADIUS + OVERHANG) * 1.5
+combined_height = BASE1_HEIGHT + TIER1_HEIGHT
+
+remaining_base = base1
+remaining_tier = tier1_full
+
+for i in range(N_STRIPS - 1):
+    b_center = bottom_angle + bottom_grout_angle / 2
+    t_center = top_angle + top_grout_angle / 2
+    avg_angle = (b_center + t_center) / 2
+
+    with BuildPart() as grout_cut:
+        with BuildSketch(Plane.XY.offset(base1_z - 1)):
+            with Locations((0, 0)):
+                Rectangle(r_cut, GROUT_WIDTH)
+        extrude(amount=combined_height + 2)
+
+    grout_box = grout_cut.part.rotate(Axis.Z, avg_angle)
+    remaining_base = remaining_base - grout_box
+    remaining_tier = remaining_tier - grout_box
+
+    bottom_angle += bottom_strip_angle + bottom_grout_angle
+    top_angle += top_strip_angle + top_grout_angle
+
+# Add Base1 segments
+for i, seg in enumerate(remaining_base.solids()):
+    parts.append(seg)
+    colors.append("slategray")
+    names.append(f"Base1-{i+1}")
+
+# Add Tier1 segments
+for i, seg in enumerate(remaining_tier.solids()):
+    parts.append(seg)
+    colors.append("sienna")
+    names.append(f"Strip {i+1}")
+
+z += BASE1_HEIGHT + TIER1_HEIGHT
+
+# 3. Base2 (constant, tier1_top + overhang - creates trim between tiers)
+print("Building Base2...")
+base2 = make_constant_arc(BASE2_HEIGHT, TIER1_TOP + OVERHANG, z)
 parts.append(base2)
 colors.append("darkgray")
-names.append("Base2 1\" (transition)")
+names.append(f"Base2 {BASE2_HEIGHT/INCH:.0f}\" (overhang)")
 z += BASE2_HEIGHT
 
-# Tier 2 (narrower)
-print("Building tier 2...")
-tier2 = make_arc_section(TIER2_HEIGHT, TIER2_RADIUS, z)
+# 4. Tier2 (CONSTANT at 2.5" radius)
+print("Building Tier2 (constant)...")
+tier2 = make_constant_arc(TIER2_HEIGHT, TIER2_RADIUS, z)
 parts.append(tier2)
 colors.append("peru")
-names.append(f"Tier2 15\" @ {TIER2_RADIUS/INCH:.1f}\"r")
+names.append(f"Tier2 {TIER2_HEIGHT/INCH:.0f}\" (constant)")
 z += TIER2_HEIGHT
 
-# Cap (narrower)
-print("Building cap...")
-cap = make_arc_section(CAP_HEIGHT, TIER2_RADIUS * 1.02, z)
+# 5. Cap (constant, tier2 radius + overhang - crowns the top)
+print("Building Cap...")
+cap = make_constant_arc(CAP_HEIGHT, TIER2_RADIUS + OVERHANG, z)
 parts.append(cap)
 colors.append("dimgray")
-names.append(f"Cap 3\" @ {TIER2_RADIUS/INCH:.1f}\"r")
+names.append(f"Cap {CAP_HEIGHT/INCH:.0f}\" (overhang)")
 
-print(f"\nTaper visible: {TIER1_RADIUS/INCH:.2f}\" → {TIER2_RADIUS/INCH:.2f}\" radius")
-print("Sending to viewer...")
-
+print("\nSending to viewer...")
 show(*parts, colors=colors, names=names)
 
-print("Done! Note the wider base/tier1 vs narrower tier2/cap.")
+print("Done! 5 sections with tapered Tier1 segments")
