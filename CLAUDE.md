@@ -392,6 +392,30 @@ Still a generous firebox (~27" × 20" × 20"). Channel space (~10") reserved for
 - [ ] Local masonry heater guild members
 - [ ] Custom metal fabrication shops (for heat exchanger, chamber components)
 
+## CAD Tooling
+
+**Primary CAD platform**: Autodesk Fusion 360 via AuraFriday MCP-Link
+**Skill files**: `C:\myStuff\_infra\ClaudeFusion360MCP\skills\`
+
+When performing CAD operations for this project, load and follow these skill files:
+- `skills/SKILL.md` — Coordinate systems, assembly positioning, manufacturing guidelines
+- `skills/SPATIAL_AWARENESS.md` — Pre/post operation verification, bounding box interpretation
+- `skills/ENGINEERING_LITERACY.md` — Model-vs-reality protocol, tolerances, assembly hierarchy
+- `skills/AURAFRIDAY_PATTERNS.md` — Python execution templates, common API recipes
+
+### Critical Rules
+1. **ALL dimensions in centimeters** — Fusion API unit is cm. 1 inch = 2.54 cm.
+2. **Z-negation on XZ/YZ planes** — sketch Y maps to -World Z. Use `sketch_y = -target_z`.
+3. **Face/edge indices are unstable** — re-query after every geometry operation.
+4. **Never auto-join** — create bodies separately, verify with user, then combine.
+5. **Parameter blocks** — all dimensions from `designs/firebox-parameters.py`, no magic numbers.
+
+### Dimension Source of Truth
+All firebox dimensions live in `designs/firebox-parameters.py`. Every CAD script and design document references this file. When dimensions change, update the parameter file first and propagate.
+
+### Build123d Status
+Superseded by Fusion 360. Bridge doc at `ClaudeFusion360MCP/skills/BUILD123D_BRIDGE.md` if needed.
+
 ## Notes
 
 This project explores applying modern wood-burning efficiency principles within the constraints of an existing masonry fireplace shell. The goal is not to replicate a commercial insert but to create a custom solution optimized for this specific installation.
