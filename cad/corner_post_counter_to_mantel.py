@@ -243,3 +243,15 @@ print("\nSending to viewer...")
 show(*parts, colors=colors, names=names)
 
 print("Done! 5 sections with tapered Tier1 segments")
+
+# =============================================================================
+# EXPORTS
+# =============================================================================
+import os
+EXPORT_DIR = os.path.join(os.path.dirname(__file__), "exports")
+os.makedirs(EXPORT_DIR, exist_ok=True)
+
+# Full corner post assembly
+corner_post_assembly = Compound(children=parts)
+export_step(corner_post_assembly, os.path.join(EXPORT_DIR, "corner_post_full_assembly.step"))
+print(f"\nExported: corner_post_full_assembly.step")

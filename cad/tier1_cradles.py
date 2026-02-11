@@ -196,3 +196,20 @@ Strip Z: 0" to ~{TOP_Z/IN:.1f}"
 Bottom rail: Z=0" to 0.5", radius ~{(POST_BOTTOM_RADIUS + RAIL_SIZE/2)/IN:.1f}" (wraps outside strips)
 Top rail: Z=~{(TOP_Z-RAIL_SIZE)/IN:.1f}" to ~{TOP_Z/IN:.1f}", radius ~{(POST_TOP_RADIUS + RAIL_SIZE/2)/IN:.1f}" (wraps outside strips)
 """)
+
+# =============================================================================
+# EXPORTS
+# =============================================================================
+import os
+EXPORT_DIR = os.path.join(os.path.dirname(__file__), "exports")
+os.makedirs(EXPORT_DIR, exist_ok=True)
+
+# Rails (fabricate these)
+export_step(bottom_rail, os.path.join(EXPORT_DIR, "tier1_cradle_bottom_rail.step"))
+export_step(top_rail, os.path.join(EXPORT_DIR, "tier1_cradle_top_rail.step"))
+print("Exported: tier1_cradle_bottom_rail.step, tier1_cradle_top_rail.step")
+
+# Full cradle assembly
+cradle_assembly = Compound(children=[bottom_rail, top_rail, *strips])
+export_step(cradle_assembly, os.path.join(EXPORT_DIR, "tier1_cradle_full_assembly.step"))
+print("Exported: tier1_cradle_full_assembly.step")

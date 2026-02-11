@@ -1,394 +1,494 @@
 """
-Angle Grinder Mount for Precision Cutting Sled
-===============================================
+Grinder Cutting Sled Assembly - FUNCTIONAL DESIGN
+==================================================
 
-Mounts a Makita 4.5" angle grinder to the SBR20 rail carriage plate.
+Precision cutting sled for ceramic tile strips.
 
-Design features:
-- 1/4" steel base plate with kerf slot
-- L-brackets bolted through grinder's M10 threaded handle holes
-- Shaft collar/brace at original guard mount location
-- Bottom 1/3 of blade protrudes below base into wet cutting zone
+COORDINATE SYSTEM:
+  X = Direction of travel (along rails, cutting direction)
+  Y = Lateral direction (between rails)
+  Z = Vertical (up from platen surface)
 
-CRITICAL: Measure your grinder and update parameters before fabrication!
+FUNCTIONAL GEOMETRY:
+  - Platen (work surface) at Z=0, tile sits here
+  - Platen has a slot for the blade to pass through
+  - Rails elevated on risers, flanking the platen
+  - Carriage (blocks + plate + stand) rides on rails
+  - Blade extends DOWN through slot in base plate, through platen slot
+  - As carriage moves along X, blade cuts through tile
 
-Run with Shift+Enter in VS Code with OCP CAD Viewer extension.
+All dimensions in millimeters.
 """
 
 from build123d import *
-from math import pi, cos, sin
 
-# Handle OCP CAD Viewer import (works in VS Code, graceful fallback otherwise)
 try:
-    from ocp_vscode import show, show_object, set_defaults, Camera
+    from ocp_vscode import show_object, set_defaults, Camera
     set_defaults(reset_camera=Camera.KEEP)
-    HAS_VIEWER = True
 except ImportError:
-    def show(*args, **kwargs): pass
     def show_object(*args, **kwargs): pass
-    HAS_VIEWER = False
 
 # =============================================================================
-# PARAMETERS — MEASURE YOUR MAKITA AND UPDATE THESE VALUES
+# TILE PARAMETERS
 # =============================================================================
-
-# Makita 4.5" grinder reference dimensions (GA4530 / similar)
-# These are ESTIMATES - measure your actual grinder!
-
-# Gear head (front section with handle holes)
-GEAR_HEAD_DIA = 65.0           # mm - diameter of gear housing (measure across widest part)
-GEAR_HEAD_LENGTH = 45.0        # mm - length of gear head section
-
-# Handle mounting holes (M10 threaded holes on either side)
-HANDLE_THREAD = 10.0           # mm - M10 thread
-HANDLE_HOLE_SPACING = 65.0     # mm - CENTER-TO-CENTER across gear head (MEASURE THIS!)
-HANDLE_HOLE_HEIGHT = 32.0      # mm - height of hole center above spindle centerline
-
-# Motor body (barrel section behind gear head)
-MOTOR_BODY_DIA = 57.0          # mm - barrel grip diameter (MEASURE THIS!)
-MOTOR_BODY_LENGTH = 180.0      # mm - length from gear head to rear
-
-# Guard collar (where original blade guard clamps)
-COLLAR_RING_DIA = 58.0         # mm - OD of the guard clamp collar on grinder
-COLLAR_DIST_FROM_BLADE = 12.0  # mm - distance from blade face to collar center
-
-# Blade
-BLADE_DIA = 115.0              # mm - 4.5" blade
-BLADE_THICKNESS = 1.5          # mm - continuous rim diamond blade
-SPINDLE_DIA = 22.0             # mm - M14 spindle flange area
+TILE_LENGTH = 610.0          # mm - 24 inches
+TILE_WIDTH = 200.0           # mm - 7.875 inches
+TILE_THICK = 6.35            # mm - 1/4 inch
 
 # =============================================================================
-# MOUNT DESIGN PARAMETERS
+# BLADE PARAMETERS (4.5" diamond blade)
 # =============================================================================
-
-# Base plate
-BASE_THICKNESS = 6.35          # mm - 1/4" steel
-BASE_LENGTH = 160.0            # mm - along blade travel direction (X)
-BASE_WIDTH = 100.0             # mm - perpendicular to travel (Y)
-
-# L-bracket dimensions
-BRACKET_STEEL = 6.35           # mm - 1/4" steel for brackets
-BRACKET_WIDTH = 30.0           # mm - width of bracket in Y direction
-BRACKET_STANDOFF = 5.0         # mm - gap between bracket and gear head for clearance
-
-# Kerf slot (for blade passage through base)
-KERF_SLOT_WIDTH = 4.0          # mm - blade thickness + clearance
-KERF_SLOT_LENGTH = BASE_LENGTH - 20  # mm - nearly full length
-
-# Blade exposure (bottom 1/3 below base plate)
-BLADE_EXPOSURE = BLADE_DIA / 3  # mm - ~38mm for 115mm blade
+BLADE_DIA = 115.0            # mm - 4.5 inches
+BLADE_THICK = 1.2            # mm - ~0.045 inch kerf
+BLADE_ARBOR = 22.0           # mm - arbor hole
 
 # =============================================================================
-# DERIVED DIMENSIONS
+# CUTTING GEOMETRY
 # =============================================================================
-
-# Calculate blade centerline height above base bottom (Z=0)
-# We want BLADE_EXPOSURE mm of blade below base bottom
-# Blade bottom = BLADE_CENTER_Z - BLADE_DIA/2 = -BLADE_EXPOSURE
-# Solving: BLADE_CENTER_Z = BLADE_DIA/2 - BLADE_EXPOSURE
-BLADE_CENTER_Z = (BLADE_DIA / 2) - BLADE_EXPOSURE
-
-# L-bracket vertical height (from base top to handle hole center)
-BRACKET_VERTICAL = HANDLE_HOLE_HEIGHT + BLADE_CENTER_Z - BASE_THICKNESS
-
-# Bracket horizontal reach (from edge toward grinder)
-BRACKET_HORIZONTAL = (HANDLE_HOLE_SPACING / 2) - (GEAR_HEAD_DIA / 2) + BRACKET_STANDOFF + 15
+# Blade must cut through tile completely
+# Tile surface at Z = 0, tile bottom at Z = -TILE_THICK
+# Blade bottom should reach Z = -TILE_THICK - 2mm for full cut
+BLADE_BOTTOM_Z = -TILE_THICK - 2.0  # = -8.35mm
+BLADE_CENTER_Z = BLADE_BOTTOM_Z + BLADE_DIA / 2  # = 49.15mm
 
 # =============================================================================
-# BASE PLATE
+# PLATEN (work surface)
 # =============================================================================
+PLATEN_THICK = 20.0          # mm - rigid work surface
+PLATEN_WIDTH = 160.0         # mm - Y dimension, fits between rails
+PLATEN_LENGTH = 700.0        # mm - X dimension, full tile + travel
 
-with BuildPart() as base_plate:
-    # Main plate - centered at origin
-    with BuildSketch(Plane.XY):
-        Rectangle(BASE_LENGTH, BASE_WIDTH)
-    extrude(amount=BASE_THICKNESS)
+# Blade slot in platen - full travel length
+PLATEN_SLOT_WIDTH = 5.0      # mm - blade + clearance
+PLATEN_SLOT_LENGTH = PLATEN_LENGTH - 40  # mm - nearly full length
 
-    # Kerf slot for blade passage (centered, along X axis)
-    with BuildSketch(Plane.XY.offset(BASE_THICKNESS)):
-        SlotOverall(KERF_SLOT_LENGTH, KERF_SLOT_WIDTH)
-    extrude(amount=-BASE_THICKNESS, mode=Mode.SUBTRACT)
-
-    # Corner mounting holes for attachment to carriage plate
-    hole_inset = 12.0
-    with BuildSketch(Plane.XY.offset(BASE_THICKNESS)):
-        with Locations([
-            (BASE_LENGTH/2 - hole_inset, BASE_WIDTH/2 - hole_inset),
-            (BASE_LENGTH/2 - hole_inset, -BASE_WIDTH/2 + hole_inset),
-            (-BASE_LENGTH/2 + hole_inset, BASE_WIDTH/2 - hole_inset),
-            (-BASE_LENGTH/2 + hole_inset, -BASE_WIDTH/2 + hole_inset),
-        ]):
-            Circle(4.25)  # 8.5mm clearance holes for M8 bolts
-    extrude(amount=-BASE_THICKNESS, mode=Mode.SUBTRACT)
-
-base = base_plate.part
+# Platen surface at Z = 0, bottom at Z = -PLATEN_THICK
+PLATEN_TOP_Z = 0.0
+PLATEN_BOTTOM_Z = -PLATEN_THICK
 
 # =============================================================================
-# L-BRACKETS (bolted to grinder handle holes, welded to base)
+# SBR20 RAIL DIMENSIONS
 # =============================================================================
-
-def make_bracket():
-    """Create L-bracket profile for grinder mounting."""
-    with BuildPart() as bracket:
-        # L-profile in XZ plane
-        with BuildSketch(Plane.XZ):
-            with BuildLine():
-                # Horizontal leg (sits on base plate)
-                Polyline([
-                    (0, 0),
-                    (BRACKET_HORIZONTAL, 0),
-                    (BRACKET_HORIZONTAL, BRACKET_VERTICAL),
-                    (BRACKET_HORIZONTAL - BRACKET_STEEL, BRACKET_VERTICAL),
-                    (BRACKET_HORIZONTAL - BRACKET_STEEL, BRACKET_STEEL),
-                    (0, BRACKET_STEEL),
-                ], close=True)
-            make_face()
-        extrude(amount=BRACKET_WIDTH)
-
-        # M10 clearance hole at top for grinder handle thread
-        hole_x = BRACKET_HORIZONTAL - BRACKET_STEEL / 2
-        hole_z = BRACKET_VERTICAL
-        with BuildSketch(Plane.XY.offset(hole_z)):
-            with Locations((hole_x, BRACKET_WIDTH / 2)):
-                Circle(HANDLE_THREAD / 2 + 0.5)  # M10 + clearance
-        extrude(amount=-BRACKET_STEEL, mode=Mode.SUBTRACT)
-
-    return bracket.part
-
-# Create and position brackets
-left_bracket = make_bracket()
-left_bracket = left_bracket.move(Location((0, HANDLE_HOLE_SPACING/2 - BRACKET_WIDTH/2, BASE_THICKNESS)))
-
-right_bracket = mirror(make_bracket(), about=Plane.XZ)
-right_bracket = right_bracket.move(Location((0, -HANDLE_HOLE_SPACING/2 + BRACKET_WIDTH/2, BASE_THICKNESS)))
+RAIL_BASE_WIDTH = 23.0       # mm
+RAIL_BASE_HEIGHT = 6.0       # mm
+RAIL_SHAFT_DIA = 20.0        # mm
+RAIL_LENGTH = 600.0          # mm - travel length
 
 # =============================================================================
-# SHAFT COLLAR / BRACE (clamps around motor body at guard mount location)
+# SBR20UU BLOCK DIMENSIONS
 # =============================================================================
+BLOCK_L = 50.0               # mm - along X (travel)
+BLOCK_W = 48.0               # mm - along Y
+BLOCK_H = 39.0               # mm - height
+BLOCK_SHAFT_DIA = 20.0       # mm
+BLOCK_SLOT_W = 10.0          # mm - open slot
+BLOCK_SHAFT_Z_FROM_BOTTOM = 16.0  # mm (h=23 from top, so 39-23=16 from bottom)
 
-with BuildPart() as collar_brace:
-    # Split collar ring
-    collar_id = MOTOR_BODY_DIA + 1.0   # clearance
-    collar_od = MOTOR_BODY_DIA + 14.0  # 6.5mm wall
-    collar_width = 25.0
-
-    with BuildSketch(Plane.YZ):
-        Circle(collar_od / 2)
-        Circle(collar_id / 2, mode=Mode.SUBTRACT)
-        # Split gap at top
-        with Locations((0, collar_od/2)):
-            Rectangle(10, 12, mode=Mode.SUBTRACT)
-    extrude(amount=collar_width)
-
-    # Clamp ears with bolt holes
-    ear_height = 20.0
-    ear_width = 25.0
-    with BuildSketch(Plane.YZ):
-        with Locations([(-collar_od/2 - ear_width/2 + 5, collar_od/2 + ear_height/2 - 3)]):
-            Rectangle(ear_width, ear_height)
-        with Locations([(collar_od/2 + ear_width/2 - 5, collar_od/2 + ear_height/2 - 3)]):
-            Rectangle(ear_width, ear_height)
-    extrude(amount=collar_width)
-
-    # M6 bolt holes through ears
-    with BuildSketch(Plane.XY.offset(collar_width/2)):
-        with Locations([(-collar_od/2 - 8, collar_od/2 + 8),
-                        (collar_od/2 + 8, collar_od/2 + 8)]):
-            Circle(3.5)  # M6 clearance
-    extrude(amount=-collar_width, mode=Mode.SUBTRACT)
-
-    # Support legs down to base plate
-    leg_height = BLADE_CENTER_Z - BASE_THICKNESS
-    leg_width = 12.0
-    with BuildSketch(Plane.YZ):
-        # Left leg
-        with Locations([(-collar_od/2 - leg_width/2 + 3, -leg_height/2 - collar_od/4)]):
-            Rectangle(leg_width, leg_height + collar_od/2)
-        # Right leg
-        with Locations([(collar_od/2 + leg_width/2 - 3, -leg_height/2 - collar_od/4)]):
-            Rectangle(leg_width, leg_height + collar_od/2)
-    extrude(amount=collar_width)
-
-# Position collar at guard mount location
-collar_x = -COLLAR_DIST_FROM_BLADE - collar_width/2
-shaft_collar = collar_brace.part.move(Location((collar_x, 0, BLADE_CENTER_Z)))
+# Mounting holes
+BLOCK_HOLE_PATTERN_X = 35.0  # mm
+BLOCK_HOLE_PATTERN_Y = 35.0  # mm
+BLOCK_HOLE_DIA = 5.5         # mm - M5 clearance
 
 # =============================================================================
-# GRINDER REFERENCE GEOMETRY (detailed for visualization)
+# CARRIAGE GEOMETRY - Working backwards from blade position
 # =============================================================================
+# The grinder stand holds the grinder. When in cutting position,
+# the blade center is at BLADE_CENTER_Z.
+#
+# The stand's arm pivots down. Approximate geometry:
+#   - Stand base on plate
+#   - Pivot point ~80mm above stand base
+#   - Arm length to spindle ~100mm
+#   - When arm is lowered ~45°, spindle drops ~70mm below pivot
+#
+# For blade center at Z = 49.15mm:
+#   - Spindle at Z = 49.15mm
+#   - Pivot at Z = 49.15 + 70 = 119.15mm
+#   - Stand base at Z = 119.15 - 80 = 39.15mm
+#
+# But we need clearance for the blade to pass through the base plate.
+# Base plate bottom should be above the blade TOP when at rest,
+# but the blade passes through the slot when cutting.
+#
+# Let's set base plate bottom at Z = 70mm (above blade center + some margin)
 
-# Gear head - more realistic shape with flats for handle holes
-with BuildPart() as gear_head_ref:
-    # Main gear housing - slightly flattened on sides where handle holes are
-    with BuildSketch(Plane.YZ):
-        # Rounded rectangle profile (gear head isn't perfectly round)
-        RectangleRounded(GEAR_HEAD_DIA, GEAR_HEAD_DIA * 0.85, radius=GEAR_HEAD_DIA * 0.3)
-    extrude(amount=-GEAR_HEAD_LENGTH)
+BASE_PLATE_BOTTOM_Z = 70.0
+BASE_PLATE_THICK = 6.35      # mm - 1/4 inch
+BASE_PLATE_TOP_Z = BASE_PLATE_BOTTOM_Z + BASE_PLATE_THICK
 
-    # Spindle boss (front protrusion where blade mounts)
-    with BuildSketch(Plane.YZ):
-        Circle(SPINDLE_DIA / 2 + 5)
-    extrude(amount=8)
-
-    # LEFT SIDE M10 threaded hole (this is what we bolt through!)
-    # Hole goes INTO the gear head from the left side
-    with BuildSketch(Plane.XZ.offset(GEAR_HEAD_DIA / 2)):
-        with Locations((-GEAR_HEAD_LENGTH / 2, HANDLE_HOLE_HEIGHT)):
-            Circle(HANDLE_THREAD / 2)
-    extrude(amount=-15, mode=Mode.SUBTRACT)  # blind hole ~15mm deep
-
-    # RIGHT SIDE M10 threaded hole (mirror of left)
-    with BuildSketch(Plane.XZ.offset(-GEAR_HEAD_DIA / 2)):
-        with Locations((-GEAR_HEAD_LENGTH / 2, HANDLE_HOLE_HEIGHT)):
-            Circle(HANDLE_THREAD / 2)
-    extrude(amount=15, mode=Mode.SUBTRACT)  # blind hole ~15mm deep
-
-gear_head = gear_head_ref.part.move(Location((0, 0, BLADE_CENTER_Z)))
-
-# Motor body (barrel you grip)
-with BuildPart() as motor_ref:
-    with BuildSketch(Plane.YZ):
-        Circle(MOTOR_BODY_DIA / 2)
-    extrude(amount=-MOTOR_BODY_LENGTH)
-
-    # Collar ring where guard clamps (raised ring)
-    collar_x = -COLLAR_DIST_FROM_BLADE
-    with BuildSketch(Plane.YZ.offset(collar_x)):
-        Circle(COLLAR_RING_DIA / 2 + 2)
-        Circle(MOTOR_BODY_DIA / 2, mode=Mode.SUBTRACT)
-    extrude(amount=8)
-
-motor_body = motor_ref.part.move(Location((-GEAR_HEAD_LENGTH, 0, BLADE_CENTER_Z)))
-
-# Blade (disc with arbor hole)
-with BuildPart() as blade_ref:
-    with BuildSketch(Plane.YZ):
-        Circle(BLADE_DIA / 2)
-        Circle(SPINDLE_DIA / 2, mode=Mode.SUBTRACT)
-    extrude(amount=BLADE_THICKNESS)
-
-blade = blade_ref.part.move(Location((BLADE_THICKNESS/2, 0, BLADE_CENTER_Z)))
-
-# M10 BOLTS (show the bolts that go through brackets into grinder)
-with BuildPart() as bolt_left_ref:
-    # Bolt head
-    with BuildSketch(Plane.XZ):
-        RegularPolygon(radius=8, side_count=6)  # M10 hex head ~16mm across flats
-    extrude(amount=7)
-    # Bolt shank
-    with BuildSketch(Plane.XZ):
-        Circle(HANDLE_THREAD / 2)
-    extrude(amount=-30)  # through bracket into grinder
-
-bolt_left = bolt_left_ref.part.move(Location((
-    -GEAR_HEAD_LENGTH / 2,
-    GEAR_HEAD_DIA / 2 + BRACKET_STEEL + 2,  # outside of bracket
-    BLADE_CENTER_Z + HANDLE_HOLE_HEIGHT
-)))
-
-bolt_right = mirror(bolt_left, about=Plane.XZ)
+# Blade passes through slot in base plate
+BASE_PLATE_SLOT_L = 80.0     # mm - 3+ inches
+BASE_PLATE_SLOT_W = 30.0     # mm - clearance for blade + guard
 
 # =============================================================================
-# DISPLAY ASSEMBLY
+# BLOCK AND RAIL POSITIONS
+# =============================================================================
+# Block top meets base plate bottom
+BLOCK_TOP_Z = BASE_PLATE_BOTTOM_Z
+BLOCK_BOTTOM_Z = BLOCK_TOP_Z - BLOCK_H  # = 31mm
+
+# Rail shaft aligns with block shaft bore
+RAIL_SHAFT_Z = BLOCK_BOTTOM_Z + BLOCK_SHAFT_Z_FROM_BOTTOM  # = 47mm
+RAIL_BASE_TOP_Z = RAIL_SHAFT_Z - RAIL_SHAFT_DIA / 2  # = 37mm
+RAIL_BASE_BOTTOM_Z = RAIL_BASE_TOP_Z - RAIL_BASE_HEIGHT  # = 31mm
+
+# Rail spacing - rails flank the platen
+RAIL_SPACING_Y = 200.0       # mm center-to-center
+RAIL_Y_LEFT = -RAIL_SPACING_Y / 2   # = -100mm
+RAIL_Y_RIGHT = RAIL_SPACING_Y / 2   # = +100mm
+
+# Block spacing along rails
+BLOCK_SPACING_X = 120.0      # mm
+BLOCK_X_REAR = -BLOCK_SPACING_X / 2
+BLOCK_X_FRONT = BLOCK_SPACING_X / 2
+
+BLOCK_POSITIONS = [
+    (BLOCK_X_REAR, RAIL_Y_LEFT),
+    (BLOCK_X_FRONT, RAIL_Y_LEFT),
+    (BLOCK_X_REAR, RAIL_Y_RIGHT),
+    (BLOCK_X_FRONT, RAIL_Y_RIGHT),
+]
+
+# =============================================================================
+# BASE PLATE SIZE
+# =============================================================================
+BASE_PLATE_L = BLOCK_SPACING_X + BLOCK_L + 60  # = 230mm
+BASE_PLATE_W = RAIL_SPACING_Y + BLOCK_W + 40   # = 288mm
+
+# =============================================================================
+# STAND REFERENCE (commercial grinder stand)
+# =============================================================================
+STAND_BASE_L = 205.0         # mm
+STAND_BASE_W = 120.0         # mm
+STAND_H = 100.0              # mm - to pivot point
+
+# =============================================================================
+# RAIL RISERS (support rails above platen)
+# =============================================================================
+# Rails need to be at RAIL_BASE_BOTTOM_Z = 31mm
+# Risers sit on table (below platen), support rails
+RISER_HEIGHT = RAIL_BASE_BOTTOM_Z - PLATEN_BOTTOM_Z  # 31 - (-20) = 51mm
+RISER_WIDTH = 30.0
+RISER_LENGTH = RAIL_LENGTH + 50
+
+
+# =============================================================================
+# BUILD FUNCTIONS
 # =============================================================================
 
-show_object(base, name="Base Plate (1/4\" steel)", options={"color": (70, 70, 80)})
-show_object(left_bracket, name="L-Bracket Left", options={"color": (90, 90, 100)})
-show_object(right_bracket, name="L-Bracket Right", options={"color": (90, 90, 100)})
-show_object(shaft_collar, name="Shaft Collar Brace", options={"color": (85, 85, 95)})
+def make_platen() -> Part:
+    """Work surface with blade slot."""
+    with BuildPart() as p:
+        # Main platen body
+        with BuildSketch(Plane.XY.offset(PLATEN_BOTTOM_Z)):
+            Rectangle(PLATEN_LENGTH, PLATEN_WIDTH)
+        extrude(amount=PLATEN_THICK)
 
-# Reference geometry (semi-transparent)
-show_object(gear_head, name="Grinder Gear Head (ref)", options={"color": (40, 120, 40), "alpha": 0.4})
-show_object(motor_body, name="Grinder Motor Body (ref)", options={"color": (50, 50, 60), "alpha": 0.3})
-show_object(blade, name="Blade (ref)", options={"color": (180, 50, 50), "alpha": 0.4})
-show_object(bolt_left, name="M10 Bolt Left", options={"color": (30, 30, 35)})
-show_object(bolt_right, name="M10 Bolt Right", options={"color": (30, 30, 35)})
+        # Blade slot (through the platen)
+        with BuildSketch(Plane.XY.offset(PLATEN_TOP_Z)):
+            SlotOverall(PLATEN_SLOT_LENGTH, PLATEN_SLOT_WIDTH)
+        extrude(amount=-PLATEN_THICK, mode=Mode.SUBTRACT)
+
+    return p.part
+
+
+def make_riser(y_pos: float) -> Part:
+    """Rail support riser."""
+    with BuildPart() as r:
+        with BuildSketch(Plane.XY.offset(PLATEN_BOTTOM_Z)):
+            with Locations((0, y_pos)):
+                Rectangle(RISER_LENGTH, RISER_WIDTH)
+        extrude(amount=RISER_HEIGHT)
+    return r.part
+
+
+def make_rail(y_pos: float) -> Part:
+    """SBR20 rail at given Y position, running along X."""
+    with BuildPart() as rail:
+        with BuildSketch(Plane.YZ):
+            # Base
+            with Locations((y_pos, RAIL_BASE_BOTTOM_Z + RAIL_BASE_HEIGHT/2)):
+                Rectangle(RAIL_BASE_WIDTH, RAIL_BASE_HEIGHT)
+            # Shaft
+            with Locations((y_pos, RAIL_SHAFT_Z)):
+                Circle(RAIL_SHAFT_DIA / 2)
+        extrude(amount=RAIL_LENGTH / 2, both=True)
+    return rail.part
+
+
+def make_block(x_pos: float, y_pos: float) -> Part:
+    """SBR20UU bearing block."""
+    with BuildPart() as blk:
+        # Main body
+        with BuildSketch(Plane.XY.offset(BLOCK_BOTTOM_Z)):
+            with Locations((x_pos, y_pos)):
+                Rectangle(BLOCK_L, BLOCK_W)
+        extrude(amount=BLOCK_H)
+
+        # Shaft bore (along X)
+        bore_z = BLOCK_BOTTOM_Z + BLOCK_SHAFT_Z_FROM_BOTTOM
+        with BuildSketch(Plane.YZ.offset(x_pos - BLOCK_L/2)):
+            with Locations((y_pos, bore_z)):
+                Circle(BLOCK_SHAFT_DIA / 2 + 0.5)
+        extrude(amount=BLOCK_L, mode=Mode.SUBTRACT)
+
+        # Open slot at bottom
+        slot_h = BLOCK_SHAFT_Z_FROM_BOTTOM + BLOCK_SHAFT_DIA/2 + 2
+        with BuildSketch(Plane.XY.offset(BLOCK_BOTTOM_Z)):
+            with Locations((x_pos, y_pos)):
+                Rectangle(BLOCK_L, BLOCK_SLOT_W)
+        extrude(amount=slot_h, mode=Mode.SUBTRACT)
+
+        # Mounting holes on top
+        with BuildSketch(Plane.XY.offset(BLOCK_TOP_Z)):
+            for dx in [-BLOCK_HOLE_PATTERN_X/2, BLOCK_HOLE_PATTERN_X/2]:
+                for dy in [-BLOCK_HOLE_PATTERN_Y/2, BLOCK_HOLE_PATTERN_Y/2]:
+                    with Locations((x_pos + dx, y_pos + dy)):
+                        Circle(BLOCK_HOLE_DIA / 2)
+        extrude(amount=-12, mode=Mode.SUBTRACT)
+
+    return blk.part
+
+
+def make_base_plate() -> Part:
+    """Carriage base plate with blade slot."""
+    with BuildPart() as plt:
+        # Main plate
+        with BuildSketch(Plane.XY.offset(BASE_PLATE_BOTTOM_Z)):
+            Rectangle(BASE_PLATE_L, BASE_PLATE_W)
+        extrude(amount=BASE_PLATE_THICK)
+
+        # Blade slot (centered)
+        with BuildSketch(Plane.XY.offset(BASE_PLATE_TOP_Z)):
+            SlotOverall(BASE_PLATE_SLOT_L, BASE_PLATE_SLOT_W)
+        extrude(amount=-BASE_PLATE_THICK, mode=Mode.SUBTRACT)
+
+        # Block mounting holes (16 total)
+        for bx, by in BLOCK_POSITIONS:
+            with BuildSketch(Plane.XY.offset(BASE_PLATE_TOP_Z)):
+                for dx in [-BLOCK_HOLE_PATTERN_X/2, BLOCK_HOLE_PATTERN_X/2]:
+                    for dy in [-BLOCK_HOLE_PATTERN_Y/2, BLOCK_HOLE_PATTERN_Y/2]:
+                        with Locations((bx + dx, by + dy)):
+                            Circle(BLOCK_HOLE_DIA / 2)
+            extrude(amount=-BASE_PLATE_THICK, mode=Mode.SUBTRACT)
+
+        # Stand mounting slots
+        with BuildSketch(Plane.XY.offset(BASE_PLATE_TOP_Z)):
+            for sy in [-40, 40]:
+                with Locations((0, sy)):
+                    SlotOverall(50, 8)
+        extrude(amount=-BASE_PLATE_THICK, mode=Mode.SUBTRACT)
+
+    return plt.part
+
+
+def make_stand() -> Part:
+    """Simplified grinder stand."""
+    z0 = BASE_PLATE_TOP_Z
+    with BuildPart() as st:
+        # Base
+        with BuildSketch(Plane.XY.offset(z0)):
+            Rectangle(STAND_BASE_L, STAND_BASE_W)
+        extrude(amount=5)
+
+        # Upright/pivot housing
+        with BuildSketch(Plane.XY.offset(z0 + 5)):
+            with Locations((-STAND_BASE_L/3, 0)):
+                Rectangle(60, 80)
+        extrude(amount=STAND_H)
+
+        # Arm (simplified, shown in cutting position)
+        with BuildSketch(Plane.XY.offset(z0 + 5 + STAND_H - 20)):
+            with Locations((20, 0)):
+                Rectangle(120, 50)
+        extrude(amount=20)
+
+    return st.part
+
+
+def make_grinder() -> Part:
+    """Simplified grinder body in cutting position."""
+    # Grinder body - cylinder at angle
+    spindle_z = BLADE_CENTER_Z
+    with BuildPart() as gr:
+        # Motor body (cylinder along Y axis, tilted down)
+        with BuildSketch(Plane.XZ.offset(0)):
+            with Locations((40, spindle_z + 30)):
+                Circle(35)  # motor diameter
+        extrude(amount=80, both=True)
+
+        # Gear head (near spindle)
+        with BuildSketch(Plane.XZ.offset(0)):
+            with Locations((40, spindle_z)):
+                Circle(25)
+        extrude(amount=40, both=True)
+
+    return gr.part
+
+
+def make_blade() -> Part:
+    """Cutting blade in YZ plane (perpendicular to travel)."""
+    with BuildPart() as bl:
+        with BuildSketch(Plane.YZ):  # YZ plane - perpendicular to X travel
+            with Locations((0, BLADE_CENTER_Z)):
+                Circle(BLADE_DIA / 2)
+                Circle(BLADE_ARBOR / 2, mode=Mode.SUBTRACT)
+        extrude(amount=BLADE_THICK / 2, both=True)
+    return bl.part
+
+
+def make_tile() -> Part:
+    """Reference tile on platen."""
+    with BuildPart() as t:
+        with BuildSketch(Plane.XY.offset(PLATEN_TOP_Z)):
+            # Tile offset to show it being cut
+            with Locations((-50, 0)):
+                Rectangle(TILE_LENGTH, TILE_WIDTH)
+        extrude(amount=TILE_THICK)
+    return t.part
+
 
 # =============================================================================
-# OUTPUT SUMMARY
+# CREATE ASSEMBLY
 # =============================================================================
 
-blade_bottom = BLADE_CENTER_Z - BLADE_DIA/2
-blade_below_base = -blade_bottom if blade_bottom < 0 else 0
+# Fixed components
+platen = make_platen()
+riser_left = make_riser(RAIL_Y_LEFT)
+riser_right = make_riser(RAIL_Y_RIGHT)
+rail_left = make_rail(RAIL_Y_LEFT)
+rail_right = make_rail(RAIL_Y_RIGHT)
 
+# Carriage components
+blocks = [make_block(x, y) for x, y in BLOCK_POSITIONS]
+base_plate = make_base_plate()
+stand = make_stand()
+grinder = make_grinder()
+blade = make_blade()
+
+# Workpiece
+tile = make_tile()
+
+# =============================================================================
+# DISPLAY
+# =============================================================================
+
+# Platen - wood/MDF color
+show_object(platen, name="Platen", options={"color": (180, 140, 100)})
+
+# Risers - structural
+show_object(riser_left, name="Riser_Left", options={"color": (100, 100, 105)})
+show_object(riser_right, name="Riser_Right", options={"color": (100, 100, 105)})
+
+# Rails
+show_object(rail_left, name="Rail_Left", options={"color": (60, 60, 65), "alpha": 0.8})
+show_object(rail_right, name="Rail_Right", options={"color": (60, 60, 65), "alpha": 0.8})
+
+# Blocks
+for i, blk in enumerate(blocks):
+    names = ["Block_RL", "Block_FL", "Block_RR", "Block_FR"]
+    show_object(blk, name=names[i], options={"color": (140, 140, 150)})
+
+# Base plate (FABRICATE THIS)
+show_object(base_plate, name="BASE_PLATE_fabricate", options={"color": (70, 130, 180)})
+
+# Stand (reference)
+show_object(stand, name="Stand_ref", options={"color": (80, 80, 85), "alpha": 0.5})
+
+# Grinder (reference)
+show_object(grinder, name="Grinder_ref", options={"color": (60, 60, 65), "alpha": 0.4})
+
+# Blade (cutting position)
+show_object(blade, name="BLADE", options={"color": (200, 50, 50), "alpha": 0.7})
+
+# Tile (workpiece)
+show_object(tile, name="Tile_workpiece", options={"color": (210, 180, 140), "alpha": 0.6})
+
+# =============================================================================
+# VERIFICATION
+# =============================================================================
 print(f"""
 ================================================================================
-GRINDER MOUNT ASSEMBLY — Precision Cutting Sled
+GRINDER CUTTING SLED - FUNCTIONAL DESIGN
 ================================================================================
 
-GRINDER PARAMETERS (from your measurements):
+VERIFICATION - Does the blade reach the tile?
 
-  Gear Head:
-    - Diameter: {GEAR_HEAD_DIA} mm
-    - Handle hole spacing: {HANDLE_HOLE_SPACING} mm (center-to-center)
-    - Handle hole height above spindle: {HANDLE_HOLE_HEIGHT} mm
-    - Handle thread: M{HANDLE_THREAD:.0f}
+  Tile:
+    Top surface:    Z = {PLATEN_TOP_Z + TILE_THICK:.1f} mm
+    Bottom surface: Z = {PLATEN_TOP_Z:.1f} mm (on platen)
 
-  Motor Body:
-    - Barrel diameter: {MOTOR_BODY_DIA} mm
+  Blade (4.5" / 115mm):
+    Center:  Z = {BLADE_CENTER_Z:.1f} mm
+    Top:     Z = {BLADE_CENTER_Z + BLADE_DIA/2:.1f} mm
+    Bottom:  Z = {BLADE_BOTTOM_Z:.1f} mm
 
-  Blade:
-    - Diameter: {BLADE_DIA} mm (4.5")
-    - Blade centerline: {BLADE_CENTER_Z:.1f} mm above base bottom
-
---------------------------------------------------------------------------------
-FABRICATED COMPONENTS:
---------------------------------------------------------------------------------
-
-  BASE PLATE (1/4" steel):
-    - Size: {BASE_LENGTH:.0f} x {BASE_WIDTH:.0f} x {BASE_THICKNESS:.2f} mm
-    - Size: {BASE_LENGTH/25.4:.2f}" x {BASE_WIDTH/25.4:.2f}" x 0.250"
-    - Kerf slot: {KERF_SLOT_WIDTH:.0f} x {KERF_SLOT_LENGTH:.0f} mm (centered)
-    - Corner holes: 4x Ø8.5mm, {12.0}mm from edges
-
-  L-BRACKETS x2 (1/4" steel):
-    - Vertical leg: {BRACKET_VERTICAL:.1f} mm ({BRACKET_VERTICAL/25.4:.2f}")
-    - Horizontal leg: {BRACKET_HORIZONTAL:.1f} mm ({BRACKET_HORIZONTAL/25.4:.2f}")
-    - Width: {BRACKET_WIDTH:.0f} mm
-    - Top hole: Ø{HANDLE_THREAD + 1:.0f}mm (M{HANDLE_THREAD:.0f} clearance)
-    - Attachment: Spot weld horizontal leg to base plate
-
-  SHAFT COLLAR BRACE:
-    - ID: {MOTOR_BODY_DIA + 1:.0f} mm (fits Ø{MOTOR_BODY_DIA:.0f}mm body + clearance)
-    - OD: {MOTOR_BODY_DIA + 14:.0f} mm
-    - Split clamp with M6 bolt
-    - Support legs weld to base plate
+  ✓ Blade bottom ({BLADE_BOTTOM_Z:.1f}mm) is BELOW tile bottom ({PLATEN_TOP_Z:.1f}mm)
+  ✓ Blade will cut completely through the tile
 
 --------------------------------------------------------------------------------
-BLADE GEOMETRY:
+PLATEN (work surface)
 --------------------------------------------------------------------------------
+  Size: {PLATEN_LENGTH} × {PLATEN_WIDTH} × {PLATEN_THICK} mm
+  Surface at Z = {PLATEN_TOP_Z} mm
+  Blade slot: {PLATEN_SLOT_LENGTH} × {PLATEN_SLOT_WIDTH} mm (through center)
 
-  Blade centerline Z: {BLADE_CENTER_Z:.1f} mm (above base bottom)
-  Blade bottom edge:  {blade_bottom:.1f} mm {"(BELOW base)" if blade_bottom < 0 else "(above base)"}
-  Blade exposure:     {blade_below_base:.1f} mm below base plate
+--------------------------------------------------------------------------------
+RAILS (2× SBR20, on risers)
+--------------------------------------------------------------------------------
+  Riser height: {RISER_HEIGHT:.1f} mm (lifts rails above platen)
+  Rail shaft center: Z = {RAIL_SHAFT_Z:.1f} mm
+  Rail spacing: {RAIL_SPACING_Y} mm (Y = ±{RAIL_SPACING_Y/2} mm)
+  Rail length: {RAIL_LENGTH} mm
 
-  Target was {BLADE_EXPOSURE:.1f} mm (bottom 1/3 of {BLADE_DIA:.0f}mm blade)
-  {"✓ ACHIEVED" if abs(blade_below_base - BLADE_EXPOSURE) < 1 else "✗ ADJUST PARAMETERS"}
+--------------------------------------------------------------------------------
+CARRIAGE
+--------------------------------------------------------------------------------
+  Blocks (4× SBR20UU):
+    Bottom: Z = {BLOCK_BOTTOM_Z:.1f} mm
+    Top:    Z = {BLOCK_TOP_Z:.1f} mm
+
+  Base plate:
+    Size: {BASE_PLATE_L} × {BASE_PLATE_W} × {BASE_PLATE_THICK} mm
+    Bottom: Z = {BASE_PLATE_BOTTOM_Z:.1f} mm
+    Top:    Z = {BASE_PLATE_TOP_Z:.1f} mm
+    Blade slot: {BASE_PLATE_SLOT_L} × {BASE_PLATE_SLOT_W} mm
+
+--------------------------------------------------------------------------------
+BLADE ORIENTATION
+--------------------------------------------------------------------------------
+  Blade disc in YZ plane (perpendicular to X travel direction)
+  As carriage moves along +X, blade cuts through tile
 
 ================================================================================
-CRITICAL: MEASURE YOUR GRINDER BEFORE FABRICATION!
+HOW IT WORKS:
 ================================================================================
+  1. Place tile on platen (centered over blade slot)
+  2. Set fence for strip width
+  3. Lower grinder to cutting depth (blade through platen slot)
+  4. Turn on grinder, start water flow
+  5. Push carriage along rails (+X direction)
+  6. Blade cuts through tile
+  7. Return carriage, index tile for next strip, repeat
 
-  1. HANDLE_HOLE_SPACING = {HANDLE_HOLE_SPACING} mm
-     → Put calipers across gear head, measure center-to-center of M10 holes
-
-  2. HANDLE_HOLE_HEIGHT = {HANDLE_HOLE_HEIGHT} mm
-     → Measure from spindle centerline UP to handle hole center
-
-  3. GEAR_HEAD_DIA = {GEAR_HEAD_DIA} mm
-     → Measure widest diameter of gear housing
-
-  4. MOTOR_BODY_DIA = {MOTOR_BODY_DIA} mm
-     → Measure barrel diameter where you grip it
-
-Update parameters, re-run script (Shift+Enter), verify fit in viewer.
 ================================================================================
 """)
 
 # =============================================================================
-# EXPORT (uncomment to generate files)
+# EXPORTS
 # =============================================================================
+import os
+EXPORT_DIR = os.path.join(os.path.dirname(__file__), "exports")
+os.makedirs(EXPORT_DIR, exist_ok=True)
 
-# base.export_step("grinder_mount_base.step")
-# left_bracket.export_step("grinder_mount_bracket_left.step")
-# shaft_collar.export_step("grinder_mount_collar.step")
+# Main fabrication part
+export_step(base_plate, os.path.join(EXPORT_DIR, "grinder_sled_base_plate.step"))
+print(f"Exported: grinder_sled_base_plate.step")
+
+# Full assembly as compound
+assembly = Compound(children=[
+    platen, riser_left, riser_right, rail_left, rail_right,
+    *blocks, base_plate, stand, grinder, blade, tile
+])
+export_step(assembly, os.path.join(EXPORT_DIR, "grinder_sled_assembly.step"))
+print(f"Exported: grinder_sled_assembly.step")
