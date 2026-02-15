@@ -17,7 +17,9 @@
       "Bash(uvx mcp-server-git:*)",
       "Bash(git -C:*)",
       "Bash(dir /b \"C:\\\\Users\\\\steve\\\\.claude\")",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(gh repo create:*)",
+      "Bash(timeout:*)"
     ]
   }
 }
